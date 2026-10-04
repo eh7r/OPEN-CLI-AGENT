@@ -2,7 +2,7 @@
 
 A short guide to get Ai-Agent running on Linux.
 
-## Requirements | المكتبات التي تحتاجها لتشغيل الـ Agent
+## Requirements |Agentالمكتبات التي تحتاجها لتشغيل الـ
 
 You need four things: **Python 3.10+**, **git**, **Ollama**, and the Python libraries in `requirements.txt`.
 
