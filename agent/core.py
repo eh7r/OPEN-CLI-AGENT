@@ -1,5 +1,6 @@
 from rich.console import Console
 
+from agent import tools
 from agent.config import MAX_STEPS, MODEL
 from agent.model import ask
 
@@ -11,35 +12,6 @@ SYSTEM_PROMPT = (
     "When you have the final answer, reply in plain text."
 )
 
-TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "terminal",
-            "description": "Run a shell command and return its output",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "command": {
-                        "type": "string",
-                        "description": "The shell command to run",
-                    }
-                },
-                "required": ["command"],
-            },
-        },
-    }
-]
-
-
-def run_tool(name: str, args: dict) -> str:
-    """Simulated tools: print what the model wants, execute nothing."""
-    if name == "terminal":
-        command = args.get("command", "")
-        console.print(f"[yellow][SIMULATED][/yellow] would run: [bold]{command}[/bold]")
-        return "[simulated] the command was not executed"
-    return f"unknown tool: {name}"
-
 
 def run(task: str) -> None:
     console.print(f"[dim]model: {MODEL}[/dim]")
@@ -50,7 +22,7 @@ def run(task: str) -> None:
 
     for step in range(1, MAX_STEPS + 1):
         console.print(f"[dim]-- step {step}/{MAX_STEPS}[/dim]")
-        reply = ask(messages, TOOLS)
+        reply = ask(messages, tools.schemas())
         messages.append(reply)
 
         if not reply.tool_calls:
@@ -58,7 +30,7 @@ def run(task: str) -> None:
             return
 
         for call in reply.tool_calls:
-            result = run_tool(call.function.name, dict(call.function.arguments))
+            result = tools.execute(call.function.name, dict(call.function.arguments))
             messages.append(
                 {"role": "tool", "tool_name": call.function.name, "content": result}
             )
