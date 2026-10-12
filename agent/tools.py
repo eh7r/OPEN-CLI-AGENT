@@ -4,6 +4,8 @@ from typing import Callable
 from pydantic import BaseModel, Field, ValidationError
 from rich.console import Console
 
+from agent import permissions
+
 console = Console()
 
 
@@ -78,6 +80,9 @@ class TerminalArgs(BaseModel):
 
 @register("terminal", "Run a shell command and return its output", TerminalArgs)
 def terminal(args: TerminalArgs) -> str:
+    allowed, message = permissions.authorize(args.command)
+    if not allowed:
+        return message
     # Simulated for now: real execution comes after the Permission Layer.
     console.print(f"[yellow][SIMULATED][/yellow] would run: [bold]{args.command}[/bold]")
     return "[simulated] the command was not executed"

@@ -9,6 +9,7 @@ console = Console()
 SYSTEM_PROMPT = (
     "You are a helpful terminal assistant. "
     "Use the terminal tool when you need to run a shell command. "
+    "If a tool returns an error or the user declined, say clearly that the action was NOT done. "
     "When you have the final answer, reply in plain text."
 )
 
