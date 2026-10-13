@@ -86,4 +86,7 @@ def git_commit(args: CommitArgs) -> str:
     code, output = _git("add", "--", *paths)
     if code != 0:
         return _format(code, output)
-    return _format(*_git("commit", "-m", message, "--", *paths))
+    code, output = _git("commit", "-m", message, "--", *paths)
+    if code != 0:
+        return f"Error: the commit failed: {_truncate(output)} The files may be staged (check with git_status). Do not repeat this commit; tell the user."
+    return _format(code, output)

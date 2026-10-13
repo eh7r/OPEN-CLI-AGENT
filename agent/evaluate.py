@@ -42,6 +42,7 @@ class Tracker:
     counts: dict = field(default_factory=dict)
     locked: set = field(default_factory=set)
     declined: bool = False
+    refusals: int = 0
 
     @staticmethod
     def _key(name: str, args: dict) -> str:
