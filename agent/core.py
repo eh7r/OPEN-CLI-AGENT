@@ -16,6 +16,8 @@ SYSTEM_PROMPT = (
     "When you have the final answer, reply in plain text, briefly."
 )
 
+MAX_REFUSALS = 3
+
 SKIPPED = (
     "Skipped: the user declined an earlier action in this task. "
     "Do not try another way; explain to the user."
@@ -45,6 +47,9 @@ def run(task: str) -> None:
 
     for step in range(1, MAX_STEPS + 1):
         console.print(f"[dim]-- step {step}/{MAX_STEPS}[/dim]")
+        if tracker.refusals >= MAX_REFUSALS:
+            console.print("[red]Stopped: the model kept repeating blocked calls.[/red]")
+            return
         # After a refusal the model gets no tools: it can only explain.
         reply = ask(messages, None if tracker.declined else tools.schemas())
         messages.append(reply)
@@ -63,6 +68,7 @@ def run(task: str) -> None:
                 result = tracker.check(name, args)
                 if result:
                     status = "refused"
+                    tracker.refusals += 1
                 else:
                     result, status = tracker.record(name, args, tools.execute(name, args))
 
