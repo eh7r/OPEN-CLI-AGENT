@@ -61,6 +61,8 @@ def write_file(args: WriteArgs) -> str:
         return message
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(args.content, encoding="utf-8")
+    if target.read_bytes() != args.content.encode("utf-8"):
+        return f"Error: verification failed for {args.path}: the content does not match."
     return f"OK: wrote {len(args.content)} characters to '{args.path}'."
 
 
