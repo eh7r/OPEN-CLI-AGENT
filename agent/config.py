@@ -22,3 +22,7 @@ TIER = os.getenv("AGENT_TIER", detect_tier())
 MODEL = os.getenv("AGENT_MODEL", TIERS[TIER])
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 MAX_STEPS = int(os.getenv("AGENT_MAX_STEPS", "10"))
+
+WORKDIR = os.getenv("AGENT_WORKDIR", os.getcwd())
+COMMAND_TIMEOUT = int(os.getenv("AGENT_TIMEOUT", "30"))
+MAX_OUTPUT_CHARS = int(os.getenv("AGENT_MAX_OUTPUT", "4000"))
