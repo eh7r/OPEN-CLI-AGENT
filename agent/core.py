@@ -1,6 +1,6 @@
 from rich.console import Console
 
-from agent import file_tools, tools  # noqa: F401
+from agent import file_tools, git_tools, tools  # noqa: F401
 from agent.config import MAX_STEPS, MODEL
 from agent.model import ask
 
@@ -10,6 +10,7 @@ SYSTEM_PROMPT = (
     "You are a helpful terminal assistant. "
     "Use the terminal tool when you need to run a shell command. "
     "For files, prefer read_file, write_file and list_dir over shell commands. "
+    "For git, use git_status, git_diff and git_commit. "
     "If a tool returns an error or the user declined, say clearly that the action was NOT done. "
     "When you have the final answer, reply in plain text, briefly."
 )
