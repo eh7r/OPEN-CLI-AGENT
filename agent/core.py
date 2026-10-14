@@ -1,7 +1,7 @@
 from rich.console import Console
 
 from agent import evaluate, file_tools, git_tools, tools  # noqa: F401
-from agent.config import MAX_STEPS, MODEL
+from agent.config import MAX_STEPS, MODEL, SANDBOX
 from agent.model import ask
 
 console = Console()
@@ -38,6 +38,8 @@ def show_final(reply, last_result: str, declined: bool) -> None:
 
 def run(task: str) -> None:
     console.print(f"[dim]model: {MODEL}[/dim]")
+    if not SANDBOX:
+        console.print("[red]WARNING: sandbox is OFF, commands run with your full permissions.[/red]")
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": task},

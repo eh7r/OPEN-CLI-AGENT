@@ -143,3 +143,37 @@ Example (fish):
 ```fish
 env AGENT_MODEL=gpt-oss:20b python your_script.py
 ```
+
+
+---
+
+## Sandbox (bubblewrap)
+
+Shell commands run inside a [bubblewrap](https://github.com/containers/bubblewrap) sandbox by default. Inside it, a command can only write to the project folder, cannot see the rest of your home folder, has no network, and starts with a clean environment. `.git` is read-only and `.env` is hidden.
+
+The agent refuses to run shell commands if `bwrap` is not installed.
+
+**Arch Linux**
+```bash
+sudo pacman -S bubblewrap
+```
+
+**Debian / Ubuntu**
+```bash
+sudo apt install bubblewrap
+```
+
+**Fedora**
+```bash
+sudo dnf install bubblewrap
+```
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `AGENT_SANDBOX` | `on` | Set to `off` to disable the sandbox (not recommended) |
+| `AGENT_SANDBOX_NET` | `0` | Set to `1` to give sandboxed commands network access |
+
+Notes:
+- Commands like `pip install` or `git push` need the network, so they fail unless you set `AGENT_SANDBOX_NET=1`.
+- Run the agent from a project folder, not from your home folder or `/`.
+- As far as I know, some systems restrict unprivileged user namespaces (recent Ubuntu versions, for example). If `bwrap` fails with a permission error, check your distribution's documentation.
