@@ -1,6 +1,6 @@
 from rich.console import Console
 
-from agent import evaluate, file_tools, git_tools, tools  # noqa: F401
+from agent import context, evaluate, file_tools, git_tools, tools  # noqa: F401
 from agent.config import MAX_STEPS, MODEL, SANDBOX
 from agent.model import ask
 
@@ -53,7 +53,14 @@ def run(task: str) -> None:
             console.print("[red]Stopped: the model kept repeating blocked calls.[/red]")
             return
         # After a refusal the model gets no tools: it can only explain.
-        reply = ask(messages, None if tracker.declined else tools.schemas())
+        schemas = None if tracker.declined else tools.schemas()
+        fit = context.compact(messages, schemas)
+        if fit == context.TOO_BIG:
+            console.print("[red]Stopped: this does not fit in the context window. Raise AGENT_CONTEXT or shorten the task.[/red]")
+            return
+        if fit == context.TRIMMED:
+            console.print("[dim]   context trimmed to fit[/dim]")
+        reply = ask(messages, schemas)
         messages.append(reply)
 
         if tracker.declined or not reply.tool_calls:
