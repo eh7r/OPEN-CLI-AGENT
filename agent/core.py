@@ -1,6 +1,6 @@
 from rich.console import Console
 
-from agent import context, evaluate, file_tools, git_tools, tools  # noqa: F401
+from agent import context, evaluate, file_tools, git_tools, memory, tools  # noqa: F401
 from agent.config import MAX_STEPS, MODEL, SANDBOX
 from agent.model import ask
 
@@ -11,6 +11,8 @@ SYSTEM_PROMPT = (
     "Use the terminal tool when you need to run a shell command. "
     "For files, prefer read_file, write_file and list_dir over shell commands. "
     "For git, use git_status, git_diff and git_commit. "
+    "Use remember only when the user asks you to keep a fact for future sessions (never secrets); use forget to delete a note. "
+    "For counting or measuring files (lines, sizes) run a command such as wc -l; do not guess. "
     "If a tool returns an error or the user declined, say clearly that the action was NOT done. "
     "If the user declines an action, stop and explain; never try another way to do the same thing. "
     "When you have the final answer, reply in plain text, briefly."
@@ -41,7 +43,7 @@ def run(task: str) -> None:
     if not SANDBOX:
         console.print("[red]WARNING: sandbox is OFF, commands run with your full permissions.[/red]")
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": SYSTEM_PROMPT + memory.notes_block()},
         {"role": "user", "content": task},
     ]
     tracker = evaluate.Tracker()

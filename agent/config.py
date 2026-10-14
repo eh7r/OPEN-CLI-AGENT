@@ -32,3 +32,5 @@ SANDBOX_NET = os.getenv("AGENT_SANDBOX_NET", "0") == "1"
 
 CONTEXT_TOKENS = int(os.getenv("AGENT_CONTEXT", "4096"))
 MAX_REPLY_TOKENS = int(os.getenv("AGENT_MAX_REPLY", "1024"))
+
+MEMORY_DB = os.getenv("AGENT_MEMORY_DB", os.path.join(os.getenv("XDG_DATA_HOME", os.path.expanduser("~/.local/share")), "ai-agent", "memory.db"))

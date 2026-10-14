@@ -2,6 +2,7 @@ import sys
 
 from rich.console import Console
 
+from agent import memory
 from agent.core import run
 from agent.model import ModelError
 
@@ -9,6 +10,9 @@ console = Console()
 
 
 def main() -> None:
+    if sys.argv[1:2] == ["--notes"]:
+        memory.show_notes()
+        return
     try:
         task = " ".join(sys.argv[1:]) or console.input("[bold cyan]Task: [/bold cyan]")
         run(task)
