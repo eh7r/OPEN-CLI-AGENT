@@ -3,6 +3,7 @@ import signal
 import subprocess
 
 from agent.config import COMMAND_TIMEOUT, MAX_OUTPUT_CHARS, WORKDIR
+from agent.sandbox import SandboxUnavailable, build_argv
 
 
 def _truncate(text: str) -> str:
@@ -14,11 +15,15 @@ def _truncate(text: str) -> str:
 
 
 def run_command(command: str) -> str:
-    """Run a shell command with a timeout and an output limit."""
+    """Run a shell command in the sandbox with a timeout and an output limit."""
+    try:
+        argv = build_argv(command)
+    except SandboxUnavailable as e:
+        return f"Error: {e}"
+
     try:
         proc = subprocess.Popen(
-            command,
-            shell=True,
+            argv,
             cwd=WORKDIR,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,

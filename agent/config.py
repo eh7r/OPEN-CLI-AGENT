@@ -26,3 +26,6 @@ MAX_STEPS = int(os.getenv("AGENT_MAX_STEPS", "10"))
 WORKDIR = os.getenv("AGENT_WORKDIR", os.getcwd())
 COMMAND_TIMEOUT = int(os.getenv("AGENT_TIMEOUT", "30"))
 MAX_OUTPUT_CHARS = int(os.getenv("AGENT_MAX_OUTPUT", "4000"))
+
+SANDBOX = os.getenv("AGENT_SANDBOX", "on").lower() != "off"
+SANDBOX_NET = os.getenv("AGENT_SANDBOX_NET", "0") == "1"
