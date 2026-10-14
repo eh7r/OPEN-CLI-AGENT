@@ -5,7 +5,7 @@
 
 هو وكيل ذكاء اصطناعي مفتوح المصدر مبني باستخدام Python وOllama ويعمل محليًا عبر التيرمنال باستخدام موديلات لغة مفتوحة المصدر 
 
-(./docs/images/ai_agent_github.png)
+![AI Agent project overview](./docs/images/ai_agent_github.png)
 
 
 
