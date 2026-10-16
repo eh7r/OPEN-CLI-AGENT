@@ -93,7 +93,7 @@ def authorize(command: str) -> tuple[bool, str]:
         return False, "Error: approval is needed but there is no interactive terminal."
 
     console.print(f"[yellow][PERMISSION][/yellow] the agent wants to run: [bold]{escape(command)}[/bold]")
-    answer = console.input("Allow? [y/N] ").strip().lower()
+    answer = console.input("Allow? [y/N] ", markup=False).strip().lower()
     if answer in ("y", "yes"):
         return True, ""
     return False, "Error: the user declined to run this command. It was NOT performed, so there is no result from it. Do not retry it or try another way; tell the user it was declined."

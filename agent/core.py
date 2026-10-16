@@ -6,6 +6,8 @@ from agent.model import ask
 
 console = Console()
 
+MAX_REFUSALS = 3
+
 SYSTEM_PROMPT = (
     "You are a helpful terminal assistant. "
     "Use the terminal tool when you need to run a shell command. "
@@ -18,23 +20,26 @@ SYSTEM_PROMPT = (
     "When you have the final answer, reply in plain text, briefly."
 )
 
-MAX_REFUSALS = 3
-
 SKIPPED = (
     "Skipped: the user declined an earlier action in this task. "
     "Do not try another way; explain to the user."
 )
 
 
-def show_final(reply, last_result: str, declined: bool) -> None:
-    text = (reply.content or "").strip()
-    if not text:
-        if declined:
-            text = "The action was declined by you and was not performed."
-        elif last_result:
-            text = f"(the model gave no summary) Last tool result:\n{last_result}"
-        else:
-            text = "(the model returned an empty reply)"
+def stream_token(token: str) -> None:
+    console.out(token, end="", style="green", highlight=False)
+
+
+def finish(reply, last_result: str, declined: bool) -> None:
+    """The reply text was already streamed; only fill in when the model said nothing."""
+    if (reply.content or "").strip():
+        return
+    if declined:
+        text = "The action was declined by you and was not performed."
+    elif last_result:
+        text = f"(the model gave no summary) Last tool result:\n{last_result}"
+    else:
+        text = "(the model returned an empty reply)"
     console.print(f"\n{text}", style="green", markup=False)
 
 
@@ -54,6 +59,7 @@ def run(task: str) -> None:
         if tracker.refusals >= MAX_REFUSALS:
             console.print("[red]Stopped: the model kept repeating blocked calls.[/red]")
             return
+
         # After a refusal the model gets no tools: it can only explain.
         schemas = None if tracker.declined else tools.schemas()
         fit = context.compact(messages, schemas)
@@ -62,11 +68,14 @@ def run(task: str) -> None:
             return
         if fit == context.TRIMMED:
             console.print("[dim]   context trimmed to fit[/dim]")
-        reply = ask(messages, schemas)
+
+        reply = ask(messages, schemas, on_token=stream_token)
         messages.append(reply)
+        if (reply.content or "").strip():
+            console.print()
 
         if tracker.declined or not reply.tool_calls:
-            show_final(reply, last_result, tracker.declined)
+            finish(reply, last_result, tracker.declined)
             return
 
         for call in reply.tool_calls:
