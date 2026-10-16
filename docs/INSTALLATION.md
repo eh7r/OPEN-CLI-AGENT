@@ -177,3 +177,36 @@ Notes:
 - Commands like `pip install` or `git push` need the network, so they fail unless you set `AGENT_SANDBOX_NET=1`.
 - Run the agent from a project folder, not from your home folder or `/`.
 - As far as I know, some systems restrict unprivileged user namespaces (recent Ubuntu versions, for example). If `bwrap` fails with a permission error, check your distribution's documentation.
+
+
+---
+
+## More settings
+
+All settings are environment variables.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `AGENT_WORKDIR` | current folder | Folder the agent works in (files, commands, git) |
+| `AGENT_TIMEOUT` | `30` | Seconds before a command is killed |
+| `AGENT_MAX_OUTPUT` | `4000` | Maximum characters of command or file output sent to the model |
+| `AGENT_CONTEXT` | `4096` | Context window in tokens. Raise it on strong machines (more RAM, slower) |
+| `AGENT_MAX_REPLY` | `1024` | Maximum tokens the model may write in one reply |
+| `AGENT_MEMORY_DB` | `~/.local/share/ai-agent/memory.db` | Where saved notes are stored |
+
+---
+
+## Notes (memory)
+
+The agent can keep short notes between sessions. Ask it, for example: "remember that this project uses pytest".
+
+- It always shows you the exact note and asks before saving or deleting anything.
+- Notes belong to the project folder (its absolute path), plus optional global notes for all projects.
+- Obvious secrets (keys, tokens, passwords) are refused. This check is best effort, so review every note before you approve it.
+- Notes are shown to the model as untrusted background data, never as instructions.
+- Notes are stored outside the project, so they are never committed to git.
+
+See your notes with:
+```bash
+python main.py --notes
+```

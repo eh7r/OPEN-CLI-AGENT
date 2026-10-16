@@ -14,4 +14,4 @@ def confirm(description: str) -> tuple[bool, str]:
     answer = console.input("Allow? [y/N] ").strip().lower()
     if answer in ("y", "yes"):
         return True, ""
-    return False, "Error: the user declined this action. Do not retry it; suggest another way or ask the user."
+    return False, "Error: the user declined this action. It was NOT performed, so there is no result from it. Do not retry it or try another way; tell the user it was declined."
