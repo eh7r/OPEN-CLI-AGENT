@@ -8,6 +8,8 @@ console = Console()
 
 MAX_REFUSALS = 3
 
+DONE, STOPPED, TOO_BIG = "done", "stopped", "too_big"
+
 SYSTEM_PROMPT = (
     "You are a helpful terminal assistant. "
     "Use the terminal tool when you need to run a shell command. "
@@ -30,6 +32,17 @@ def stream_token(token: str) -> None:
     console.out(token, end="", style="green", highlight=False)
 
 
+def banner() -> None:
+    console.print(f"[dim]model: {MODEL}[/dim]")
+    if not SANDBOX:
+        console.print("[red]WARNING: sandbox is OFF, commands run with your full permissions.[/red]")
+
+
+def new_session() -> list:
+    """The starting messages of a conversation (system prompt plus saved notes)."""
+    return [{"role": "system", "content": SYSTEM_PROMPT + memory.notes_block()}]
+
+
 def finish(reply, last_result: str, declined: bool) -> None:
     """The reply text was already streamed; only fill in when the model said nothing."""
     if (reply.content or "").strip():
@@ -43,14 +56,13 @@ def finish(reply, last_result: str, declined: bool) -> None:
     console.print(f"\n{text}", style="green", markup=False)
 
 
-def run(task: str) -> None:
-    console.print(f"[dim]model: {MODEL}[/dim]")
-    if not SANDBOX:
-        console.print("[red]WARNING: sandbox is OFF, commands run with your full permissions.[/red]")
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT + memory.notes_block()},
-        {"role": "user", "content": task},
-    ]
+def run(task: str, messages: list | None = None) -> str:
+    """Run one task. Pass the same `messages` list again to continue the conversation.
+    Returns DONE, STOPPED or TOO_BIG."""
+    if messages is None:
+        banner()
+        messages = new_session()
+    messages.append({"role": "user", "content": task})
     tracker = evaluate.Tracker()
     last_result = ""
 
@@ -58,14 +70,14 @@ def run(task: str) -> None:
         console.print(f"[dim]-- step {step}/{MAX_STEPS}[/dim]")
         if tracker.refusals >= MAX_REFUSALS:
             console.print("[red]Stopped: the model kept repeating blocked calls.[/red]")
-            return
+            return STOPPED
 
         # After a refusal the model gets no tools: it can only explain.
         schemas = None if tracker.declined else tools.schemas()
         fit = context.compact(messages, schemas)
         if fit == context.TOO_BIG:
             console.print("[red]Stopped: this does not fit in the context window. Raise AGENT_CONTEXT or shorten the task.[/red]")
-            return
+            return TOO_BIG
         if fit == context.TRIMMED:
             console.print("[dim]   context trimmed to fit[/dim]")
 
@@ -76,7 +88,7 @@ def run(task: str) -> None:
 
         if tracker.declined or not reply.tool_calls:
             finish(reply, last_result, tracker.declined)
-            return
+            return DONE
 
         for call in reply.tool_calls:
             name = call.function.name
@@ -97,3 +109,4 @@ def run(task: str) -> None:
             messages.append({"role": "tool", "tool_name": name, "content": result})
 
     console.print("[red]Stopped: reached MAX_STEPS.[/red]")
+    return STOPPED
