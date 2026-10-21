@@ -41,6 +41,10 @@ def run_command(command: str) -> str:
         os.killpg(proc.pid, signal.SIGKILL)
         proc.communicate()
         return f"Error: the command timed out after {COMMAND_TIMEOUT}s and was killed."
+    except KeyboardInterrupt:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.communicate()
+        raise
 
     parts = [f"exit code: {proc.returncode}"]
     if out.strip():
