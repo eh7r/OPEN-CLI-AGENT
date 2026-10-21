@@ -19,6 +19,7 @@ SYSTEM_PROMPT = (
     "For counting or measuring files (lines, sizes) run a command such as wc -l; do not guess. "
     "If a tool returns an error or the user declined, say clearly that the action was NOT done. "
     "If the user declines an action, stop and explain; never try another way to do the same thing. "
+    "Always reply in the same language the user writes in. "
     "When you have the final answer, reply in plain text, briefly."
 )
 
