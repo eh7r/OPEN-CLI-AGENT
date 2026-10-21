@@ -38,3 +38,11 @@ def ask(messages: list, tools: list | None = None, on_token=None):
         raise ModelError("Cannot reach Ollama. Is it running?")
 
     return ollama.Message(role="assistant", content="".join(parts), tool_calls=calls or None)
+
+
+def warm_up() -> None:
+    """Load the model into memory so the first real request does not wait for it."""
+    try:
+        _client.generate(model=MODEL, prompt="", keep_alive="30m", options={"num_ctx": CONTEXT_TOKENS})
+    except Exception:
+        pass
