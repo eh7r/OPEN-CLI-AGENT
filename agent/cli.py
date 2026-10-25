@@ -25,7 +25,7 @@ def _one_shot(task: str) -> None:
         console.print(f"[red]Error:[/red] {e}")
 
 
-def _session() -> None:
+def _plain_session() -> None:
     from agent import core, model
 
     core.banner()
@@ -67,6 +67,19 @@ def _session() -> None:
                 return
 
 
+def _session() -> None:
+    """The full-screen interface when there is a real terminal, else the plain one."""
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        try:
+            from agent import tui
+        except ImportError:
+            console.print("[yellow]Textual is not installed (pip install textual); using the plain terminal.[/yellow]")
+        else:
+            tui.run()
+            return
+    _plain_session()
+
+
 def _start(args: list) -> None:
     from agent import config, setup
 
@@ -84,6 +97,9 @@ def _start(args: list) -> None:
 
     if args[:1] == ["--notes"]:
         memory.show_notes()
+        return
+    if args[:1] == ["--plain"]:
+        _plain_session()
         return
     if args:
         _one_shot(" ".join(args))

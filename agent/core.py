@@ -1,7 +1,8 @@
 from rich.console import Console
 
 from agent import context, evaluate, file_tools, git_tools, memory, tools  # noqa: F401
-from agent.config import MAX_STEPS, MODEL, SANDBOX
+from agent.config import CONTEXT_TOKENS, MAX_STEPS, MODEL, SANDBOX
+from agent.events import ConsoleOutput
 from agent.model import ask
 
 console = Console()
@@ -29,14 +30,8 @@ SKIPPED = (
 )
 
 
-def stream_token(token: str) -> None:
-    console.out(token, end="", style="green", highlight=False)
-
-
 def banner() -> None:
-    console.print(f"[dim]model: {MODEL}[/dim]")
-    if not SANDBOX:
-        console.print("[red]WARNING: sandbox is OFF, commands run with your full permissions.[/red]")
+    ConsoleOutput().banner(MODEL, SANDBOX)
 
 
 def new_session() -> list:
@@ -44,7 +39,7 @@ def new_session() -> list:
     return [{"role": "system", "content": SYSTEM_PROMPT + memory.notes_block()}]
 
 
-def finish(reply, last_result: str, declined: bool) -> None:
+def finish(reply, last_result: str, declined: bool, out) -> None:
     """The reply text was already streamed; only fill in when the model said nothing."""
     if (reply.content or "").strip():
         return
@@ -54,46 +49,54 @@ def finish(reply, last_result: str, declined: bool) -> None:
         text = f"(the model gave no summary) Last tool result:\n{last_result}"
     else:
         text = "(the model returned an empty reply)"
-    console.print(f"\n{text}", style="green", markup=False)
+    out.final(text)
 
 
-def run(task: str, messages: list | None = None) -> str:
+def run(task: str, messages: list | None = None, out=None) -> str:
     """Run one task. Pass the same `messages` list again to continue the conversation.
+    `out` is where everything is shown (plain terminal by default, the TUI passes its own).
     Returns DONE, STOPPED or TOO_BIG."""
+    out = out or ConsoleOutput()
     if messages is None:
-        banner()
+        out.banner(MODEL, SANDBOX)
         messages = new_session()
     messages.append({"role": "user", "content": task})
     tracker = evaluate.Tracker()
     last_result = ""
 
     for step in range(1, MAX_STEPS + 1):
-        console.print(f"[dim]-- step {step}/{MAX_STEPS}[/dim]")
+        out.check()
+        out.step(step, MAX_STEPS)
         if tracker.refusals >= MAX_REFUSALS:
-            console.print("[red]Stopped: the model kept repeating blocked calls.[/red]")
+            out.notice("Stopped: the model kept repeating blocked calls.", "error")
             return STOPPED
 
         # After a refusal the model gets no tools: it can only explain.
         schemas = None if tracker.declined else tools.schemas()
         fit = context.compact(messages, schemas)
         if fit == context.TOO_BIG:
-            console.print("[red]Stopped: this does not fit in the context window. Raise AGENT_CONTEXT or shorten the task.[/red]")
+            out.notice("Stopped: this does not fit in the context window. Raise AGENT_CONTEXT or shorten the task.", "error")
             return TOO_BIG
         if fit == context.TRIMMED:
-            console.print("[dim]   context trimmed to fit[/dim]")
+            out.notice("   context trimmed to fit")
+        out.context(context.estimate_tokens(messages, schemas), CONTEXT_TOKENS)
 
-        reply = ask(messages, schemas, on_token=stream_token)
+        out.model_start(step)
+        reply = ask(messages, schemas, on_token=out.token)
+        out.model_end()
         messages.append(reply)
         if (reply.content or "").strip():
-            console.print()
+            out.reply_end()
 
         if tracker.declined or not reply.tool_calls:
-            finish(reply, last_result, tracker.declined)
+            finish(reply, last_result, tracker.declined, out)
             return DONE
 
         for call in reply.tool_calls:
+            out.check()
             name = call.function.name
             args = dict(call.function.arguments)
+            out.tool_start(name, args)
 
             if tracker.declined:
                 result, status = SKIPPED, "skipped"
@@ -105,9 +108,9 @@ def run(task: str, messages: list | None = None) -> str:
                 else:
                     result, status = tracker.record(name, args, tools.execute(name, args))
 
-            console.print(f"[dim]   {name}: {status}[/dim]")
+            out.tool_end(name, args, status, result)
             last_result = result
             messages.append({"role": "tool", "tool_name": name, "content": result})
 
-    console.print("[red]Stopped: reached MAX_STEPS.[/red]")
+    out.notice("Stopped: reached MAX_STEPS.", "error")
     return STOPPED

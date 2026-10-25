@@ -326,22 +326,22 @@ def test_empty_reply_no_tools(setup, capsys):
 
 
 def test_finish_silent_when_model_spoke(capsys):
-    core.finish(SimpleNamespace(content="Already streamed"), "last", False)
+    core.finish(SimpleNamespace(content="Already streamed"), "last", False, core.ConsoleOutput())
     assert capsys.readouterr().out == ""
 
 
 def test_finish_whitespace_counts_as_empty(capsys):
-    core.finish(SimpleNamespace(content="   \n "), "", False)
+    core.finish(SimpleNamespace(content="   \n "), "", False, core.ConsoleOutput())
     assert "(the model returned an empty reply)" in out(capsys)
 
 
 def test_finish_none_content(capsys):
-    core.finish(SimpleNamespace(content=None), "res", False)
+    core.finish(SimpleNamespace(content=None), "res", False, core.ConsoleOutput())
     assert "(the model gave no summary)" in out(capsys)
 
 
 def test_finish_declined_wins_over_last_result(capsys):
-    core.finish(SimpleNamespace(content=""), "some result", True)
+    core.finish(SimpleNamespace(content=""), "some result", True, core.ConsoleOutput())
     o = out(capsys)
     assert "declined by you" in o
     assert "some result" not in o
