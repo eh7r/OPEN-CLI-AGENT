@@ -14,7 +14,7 @@ MAX_ENTRIES = 200
 def _resolve(path: str) -> Path:
     """Turn a user path into a real path that must stay inside WORKDIR."""
     root = Path(WORKDIR).resolve()
-    target = (root / path).resolve()
+    target = (root / Path(path).expanduser()).resolve()
     if target != root and root not in target.parents:
         raise ValueError("path is outside the working directory")
     if SENSITIVE.search(str(target.relative_to(root))):
@@ -56,14 +56,14 @@ def write_file(args: WriteArgs) -> str:
     if target.is_dir():
         return f"Error: '{args.path}' is a directory."
     action = "overwrite" if target.exists() else "create"
-    allowed, message = confirm(f"the agent wants to {action} '{args.path}' ({len(args.content)} characters)")
+    allowed, message = confirm(f"the agent wants to {action} '{target}' ({len(args.content)} characters)")
     if not allowed:
         return message
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(args.content, encoding="utf-8")
     if target.read_bytes() != args.content.encode("utf-8"):
         return f"Error: verification failed for {args.path}: the content does not match."
-    return f"OK: wrote {len(args.content)} characters to '{args.path}'."
+    return f"OK: wrote {len(args.content)} characters to '{target}'."
 
 
 @register("list_dir", "List the files and folders in a directory", ListArgs)
