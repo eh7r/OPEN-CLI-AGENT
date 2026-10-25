@@ -1,0 +1,391 @@
+"""The full-screen interface of the agent (Textual).
+
+White = where you act, grey = information. The core talks to this file only
+through TuiOutput (agent/events.py has the plain-terminal twin).
+"""
+import math
+import shutil
+import threading
+import time
+
+from rich.text import Text
+from textual import events
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.widgets import Input, Static
+
+from agent import approval, config, context, core, model, tools
+from agent.events import Cancelled
+from agent.logo import RESET, WHITE as ANSI_WHITE
+from agent.tui_parts import (
+    COMMANDS, CSS, G1, G2, G3, G4, GlowRule, IDLE_HINT, KEYS, Logo, ORDER, PIX, RED, STATE_LABEL,
+    ActionLog, ThinkingLine, TuiOutput, W, YELLOW, describe, fit_color, glyph, lerp, logo_rows, model_tier,
+)
+
+
+class AgentApp(App):
+    CSS = CSS
+    BINDINGS = [
+        Binding("escape", "interrupt", "Interrupt", show=False),
+        Binding("f1", "help", "Help", show=False),
+        Binding("ctrl+l", "clear", "Clear", show=False),
+    ]
+
+    def __init__(self):
+        super().__init__()
+        self.history = core.new_session()
+        self.working = False
+        self.started = False
+        self.agent_state = "idle"
+        self.cancel_flag = threading.Event()
+        self.pending = None            # (box, done) while waiting for y/n
+        self.used = 0
+        self.session_title = ""
+        self._active = []
+        self._pulse = None
+        self.think = None
+        self.actions = None
+        self.row = None
+        self.reply_w = None
+        self.reply_text = ""
+        self.first_token = False
+
+    # ----- layout
+    def compose(self) -> ComposeResult:
+        with Horizontal(id="top"):
+            yield Static(COMMANDS, classes="panel", id="p1")
+            yield Static(KEYS, classes="panel", id="p2")
+        yield Logo()
+        yield GlowRule(id="rule")
+        yield Static("", id="status")
+        yield VerticalScroll(id="chat")
+        with Vertical(id="inputwrap"):
+            with Horizontal(id="box"):
+                yield Static(">", id="prompt")
+                yield Input(placeholder="Type a message…", id="inp")
+            yield Static("", id="modeline")
+        with Horizontal(id="bar"):
+            yield Static(IDLE_HINT, id="hint")
+            yield Static("", id="ctx")
+
+    def on_mount(self):
+        self.query_one("#p1").border_title = "Commands"
+        self.query_one("#p2").border_title = "Keys"
+        approval.set_handler(self._approval_handler)
+        threading.Thread(target=model.warm_up, daemon=True).start()
+        if not config.SANDBOX:
+            self.note("WARNING: sandbox is OFF, commands run with your full permissions.", W)
+        self.used = context.estimate_tokens(self.history, tools.schemas())
+        self.update_status()
+        self.update_ctx()
+        self.paint_state()
+        self.query_one(Input).focus()
+        self.fit()
+
+    def on_resize(self, event: events.Resize):
+        self.fit()
+
+    def fit(self):
+        try:
+            self.query_one("#top").display = (not self.started) and self.size.height >= 30
+        except Exception:
+            pass
+
+    @property
+    def chat(self):
+        return self.query_one("#chat", VerticalScroll)
+
+    # ----- model line (dot = does the model fit this device?)
+    def update_status(self):
+        col = fit_color()
+        t = Text.assemble(("● ", col), ("ollama: ", G2), (config.MODEL, f"bold {W}"),
+                          ("  · /model for details", G3))
+        if col == RED:
+            t.append("  · heavier than this device", style=G3)
+        elif col == YELLOW:
+            t.append("  · lighter than this device can run", style=G3)
+        self.query_one("#status", Static).update(t)
+
+    # ----- agent state (driven by the core's real events)
+    def set_agent_state(self, state):
+        self.agent_state = state
+        self.paint_state()
+
+    def paint_state(self):
+        if self.agent_state == "idle":
+            t = Text.assemble(("▪ ", G3), ("Waiting for input…", G2))
+        else:
+            now = time.monotonic()
+            t = Text()
+            t.append(PIX[int(now * 8) % 4] + " ", style=W)
+            t.append(STATE_LABEL[self.agent_state], style=f"bold {W}")
+            t.append(("." * (int(now * 3) % 4)).ljust(3), style=G2)
+        self.query_one("#modeline", Static).update(t)
+
+    def update_ctx(self):
+        total = config.CONTEXT_TOKENS
+        pct = min(self.used / total, 1.0)
+        style = G1 if pct < 0.70 else f"bold {W}" if pct < 0.85 else f"bold reverse {W}"
+        n = round(pct * 8)
+        t = Text.assemble((f"{self.used / 1000:.1f}k/{total / 1000:.0f}k ", G2),
+                          ("█" * n, style), ("░" * (8 - n), G4),
+                          (f" {pct * 100:.0f}%", style))
+        if pct >= 0.85:
+            t.append(" FULL ", style=f"bold reverse {W}")
+        self.query_one("#ctx", Static).update(t)
+
+    # ----- helpers
+    def note(self, text, style=G3):
+        self.chat.mount(Static(Text(text, style=style), classes="note"))
+        self.chat.scroll_end(animate=False)
+
+    def set_working(self, on):
+        self.working = on
+        if on:
+            self._pulse = self.set_interval(1 / 20, self._pulse_tick)
+        else:
+            if self._pulse:
+                self._pulse.stop()
+                self._pulse = None
+            self.query_one("#box").styles.border = ("solid", W)
+            self.query_one("#hint", Static).update(IDLE_HINT)
+            self.set_agent_state("idle")
+
+    def _pulse_tick(self):
+        t = time.monotonic()
+        k = (math.sin(t * 4) + 1) / 2
+        self.query_one("#box").styles.border = ("solid", lerp("#6a6a6a", W, k))
+        p = int(t * 14) % 14
+        pos = p if p <= 7 else 14 - p
+        hint = Text()
+        for i in range(8):
+            near = abs(i - pos) <= 1
+            hint.append("▪" if near else "·", style=W if near else G4)
+        hint.append("  ")
+        hint.append("esc", style=f"bold {W}")
+        hint.append(" interrupt", style=G3)
+        self.query_one("#hint", Static).update(hint)
+        self.paint_state()
+
+    # ----- input
+    def on_input_submitted(self, event: Input.Submitted):
+        text = event.value.strip()
+        event.input.value = ""
+        if not text:
+            return
+        if self.pending is not None:
+            return self.resolve_approval(text.lower() in ("y", "yes"))
+        if text.startswith("/"):
+            return self.command(text)
+        if self.working:
+            return self.note("Still working — press esc to interrupt.", G2)
+        if not self.started:
+            self.started = True
+            self.session_title = text[:40]
+            self.fit()
+        self.chat.mount(Static(Text.assemble(("> ", f"bold {W}"), (text, W)), classes="user"))
+        self.chat.scroll_end(animate=False)
+        self.cancel_flag.clear()
+        self.set_working(True)
+        self.set_agent_state("analyzing")
+        self.run_worker(lambda: self._work(text), thread=True, exclusive=True, exit_on_error=False)
+
+    def command(self, text):
+        cmd = text.split()[0]
+        if cmd == "/exit":
+            self.action_interrupt()
+            self.exit()
+        elif cmd == "/clear":
+            self.action_clear()
+        elif cmd == "/new":
+            if self.working:
+                return self.note("Wait for the task to finish (or press esc), then /new.", G2)
+            self.action_clear()
+            self.history = core.new_session()
+            self.started = False
+            self.session_title = ""
+            self.used = context.estimate_tokens(self.history, tools.schemas())
+            self.update_ctx()
+            self.fit()
+        elif cmd == "/help":
+            self.action_help()
+        elif cmd == "/context":
+            self.note(f"Context: {self.used}/{config.CONTEXT_TOKENS} tokens (estimate)", G1)
+        elif cmd == "/model":
+            names = {v: k for k, v in ORDER.items()}
+            self.note(f"{config.MODEL} · model tier: {names[model_tier()]} · "
+                      f"this device: {config.detect_tier()}", G1)
+        else:
+            self.note(f"unknown command: {cmd} · /help", G2)
+
+    def action_help(self):
+        self.note("/help /clear /new /context /model /exit", G1)
+
+    def action_clear(self):
+        self.chat.remove_children()
+
+    def action_interrupt(self):
+        if self.pending is not None:
+            self.resolve_approval(False)
+        if self.working:
+            self.cancel_flag.set()
+            self.set_agent_state("stopping")
+
+    # ----- approval (the core asks, you answer y / n in the input box)
+    def _approval_handler(self, description):
+        """Runs in the worker thread: blocks until you answer."""
+        box, done = {}, threading.Event()
+        self.call_from_thread(self.show_approval, description, box, done)
+        done.wait()
+        if box.get("ok"):
+            return True, ""
+        return False, approval.DECLINED
+
+    def show_approval(self, description, box, done):
+        self.pending = (box, done)
+        self.chat.mount(Static(Text.assemble(
+            ("Allow this action?\n", f"bold {W}"), (description, G1),
+            ("\ny = allow · n = decline, then enter", G3)), classes="approve"))
+        self.chat.scroll_end(animate=False)
+        self.set_agent_state("approval")
+        self.query_one(Input).placeholder = "y / n"
+
+    def resolve_approval(self, ok):
+        box, done = self.pending
+        self.pending = None
+        box["ok"] = ok
+        done.set()
+        self.query_one(Input).placeholder = "Type a message…"
+        self.note("✓ allowed" if ok else "■ declined", G2)
+        self.set_agent_state("executing" if ok else "thinking")
+
+    # ----- worker thread
+    def _work(self, text):
+        t0 = time.monotonic()
+        mark = len(self.history)
+        cancelled, err, note = False, None, None
+        try:
+            if core.run(text, self.history, out=TuiOutput(self)) == core.TOO_BIG:
+                del self.history[mark:]
+                note = "This session is full. Type /new to start a new one."
+        except Cancelled:
+            del self.history[mark:]
+            cancelled = True
+        except model.ModelError as e:
+            del self.history[mark:]
+            err = str(e)
+        except Exception as e:
+            del self.history[mark:]
+            err = f"{type(e).__name__}: {e}"
+        used = context.estimate_tokens(self.history, tools.schemas())
+        try:
+            self.call_from_thread(self.ui_task_end, time.monotonic() - t0, cancelled, err, note, used)
+        except Exception:
+            pass
+
+    # ----- events from the core (run in the app thread)
+    async def ui_model_start(self, step):
+        self.first_token = False
+        self.set_agent_state("analyzing" if step == 1 else "thinking")
+        self.think = ThinkingLine()
+        self._active.append(self.think)
+        await self.chat.mount(self.think)
+        self.chat.scroll_end(animate=False)
+
+    async def ui_token(self, text):
+        if not self.first_token:
+            self.first_token = True
+            if self.think:
+                self.think.done()
+                self.think = None
+            self.set_agent_state("replying")
+            self.reply_text = ""
+            self.reply_w = Static("", classes="reply")
+            await self.chat.mount(self.reply_w)
+        self.reply_text += text
+        n = len(self.reply_text)
+        trail = "".join(glyph(n + k, n) for k in range(3))
+        self.reply_w.update(Text.assemble((self.reply_text, G1), (trail, G3)))
+        self.chat.scroll_end(animate=False)
+
+    def ui_reply_end(self):
+        if self.reply_w is not None:
+            self.reply_w.update(Text(self.reply_text, style=G1))
+            self.reply_w = None
+
+    def ui_model_end(self):
+        if self.think:
+            self.think.done()
+            self.think = None
+
+    async def ui_tool_start(self, name, args):
+        if self.actions is None:
+            self.actions = ActionLog()
+            self._active.append(self.actions)
+            await self.chat.mount(self.actions)
+        verb, target = describe(name, args)
+        self.row = self.actions.start(verb, target)
+        self.set_agent_state("executing")
+        self.chat.scroll_end(animate=False)
+
+    def ui_tool_end(self, status, result):
+        result = result or ""
+        failed = status in ("refused", "skipped") or result.lstrip().startswith("Error")
+        if self.actions is not None and self.row is not None:
+            n = len(result.splitlines())
+            if status in ("refused", "skipped"):
+                info = status
+            elif failed:
+                info = "error"
+            else:
+                info = f"{n} line{'' if n == 1 else 's'}"
+            self.actions.finish(self.row, info, ok=not failed)
+        self.set_agent_state("thinking")
+
+    def ui_final(self, text):
+        self.chat.mount(Static(Text(text, style=G1), classes="reply"))
+        self.chat.scroll_end(animate=False)
+
+    def ui_ctx(self, used):
+        self.used = used
+        self.update_ctx()
+
+    def ui_task_end(self, elapsed, cancelled, err, note, used):
+        if self.reply_w is not None:
+            self.ui_reply_end()
+        for w in self._active:
+            w.interrupt()
+        self._active.clear()
+        self.think = self.actions = self.row = None
+        self.used = used
+        self.update_ctx()
+        if cancelled:
+            self.note("■ interrupted", G2)
+        elif err:
+            self.note("✗ " + err, W)
+        else:
+            self.note(f"▪ worked {elapsed:.0f}s")
+        if note:
+            self.note(note, W)
+        elif used >= config.CONTEXT_TOKENS * 0.85:
+            self.note("Context is almost full — open a new session with /new", W)
+        self.set_working(False)
+
+
+def exit_screen(title):
+    cols = shutil.get_terminal_size((80, 24)).columns
+    _, rows = logo_rows(cols)
+    print()
+    for r in rows:
+        print("  " + ANSI_WHITE + r + RESET)
+    print()
+    print(f"  \033[2mSession \033[0m  \033[1m{title}\033[0m")
+    print()
+
+
+def run():
+    app = AgentApp()
+    app.run()
+    if app.session_title:
+        exit_screen(app.session_title)

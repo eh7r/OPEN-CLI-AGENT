@@ -2,3 +2,6 @@ ollama
 rich
 psutil
 pydantic
+arabic-reshaper
+python-bidi
+textual
