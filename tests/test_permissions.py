@@ -71,19 +71,15 @@ def test_non_interactive_never_approves(no_tty):
 
 @pytest.mark.parametrize("reply", ["y", "yes", "Y", " YES "])
 def test_yes_answers_allow(monkeypatch, reply):
-    answer_with(monkeypatch, permissions, reply)
-    assert permissions.authorize("touch x") == (True, "")
     answer_with(monkeypatch, approval, reply)
+    assert permissions.authorize("touch x") == (True, "")
     assert approval.confirm("save a note") == (True, "")
 
 
 @pytest.mark.parametrize("reply", ["n", "no", "", "غ", "نعم", "ok", "sure", "yy"])
 def test_everything_else_declines(monkeypatch, reply):
-    for module, call in (
-        (permissions, lambda: permissions.authorize("touch x")),
-        (approval, lambda: approval.confirm("save a note")),
-    ):
-        answer_with(monkeypatch, module, reply)
+    for call in (lambda: permissions.authorize("touch x"), lambda: approval.confirm("save a note")):
+        answer_with(monkeypatch, approval, reply)
         allowed, message = call()
         assert not allowed
         assert message.startswith("Error: the user declined")

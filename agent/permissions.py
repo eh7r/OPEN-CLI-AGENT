@@ -1,9 +1,10 @@
 import re
 import shlex
-import sys
 
 from rich.console import Console
 from rich.markup import escape
+
+from agent.approval import confirm
 
 console = Console()
 
@@ -89,11 +90,4 @@ def authorize(command: str) -> tuple[bool, str]:
     if _is_safe(command):
         return True, ""
 
-    if not sys.stdin.isatty():
-        return False, "Error: approval is needed but there is no interactive terminal."
-
-    console.print(f"[yellow][PERMISSION][/yellow] the agent wants to run: [bold]{escape(command)}[/bold]")
-    answer = console.input("Allow? [y/N] ", markup=False).strip().lower()
-    if answer in ("y", "yes"):
-        return True, ""
-    return False, "Error: the user declined to run this command. It was NOT performed, so there is no result from it. Do not retry it or try another way; tell the user it was declined."
+    return confirm(f"the agent wants to run: {command}")
