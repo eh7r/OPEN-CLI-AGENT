@@ -17,6 +17,7 @@ from textual.widgets import Input, Static
 
 from agent import approval, config, context, core, model, tools
 from agent.events import Cancelled
+from agent.tui_approval import APPROVAL_CSS, ApprovalBox
 from agent.logo import RESET, WHITE as ANSI_WHITE
 from agent.tui_parts import (
     COMMANDS, CSS, G1, G2, G3, G4, GlowRule, IDLE_HINT, KEYS, Logo, ORDER, PIX, RED, STATE_LABEL,
@@ -25,7 +26,7 @@ from agent.tui_parts import (
 
 
 class AgentApp(App):
-    CSS = CSS
+    CSS = CSS + APPROVAL_CSS
     BINDINGS = [
         Binding("escape", "interrupt", "Interrupt", show=False),
         Binding("f1", "help", "Help", show=False),
@@ -174,8 +175,6 @@ class AgentApp(App):
         event.input.value = ""
         if not text:
             return
-        if self.pending is not None:
-            return self.resolve_approval(text.lower() in ("y", "yes"))
         if text.startswith("/"):
             return self.command(text)
         if self.working:
@@ -226,8 +225,6 @@ class AgentApp(App):
         self.chat.remove_children()
 
     def action_interrupt(self):
-        if self.pending is not None:
-            self.resolve_approval(False)
         if self.working:
             self.cancel_flag.set()
             self.set_agent_state("stopping")
@@ -244,19 +241,29 @@ class AgentApp(App):
 
     def show_approval(self, description, box, done):
         self.pending = (box, done)
-        self.chat.mount(Static(Text.assemble(
-            ("Allow this action?\n", f"bold {W}"), (description, G1),
-            ("\ny = allow · n = decline, then enter", G3)), classes="approve"))
-        self.chat.scroll_end(animate=False)
         self.set_agent_state("approval")
-        self.query_one(Input).placeholder = "y / n"
+        inp = self.query_one(Input)
+        inp.disabled = True
+        self.approval_box = ApprovalBox(description, config.WORKDIR)
+        self.query_one("#inputwrap").mount(self.approval_box, before="#box")
+        self.chat.scroll_end(animate=False)
+
+    def on_approval_box_answered(self, message):
+        message.stop()
+        if getattr(self, "approval_box", None) is not None:
+            self.approval_box.remove()
+            self.approval_box = None
+        self.query_one(Input).disabled = False
+        self.query_one(Input).focus()
+        self.resolve_approval(message.ok)
 
     def resolve_approval(self, ok):
+        if self.pending is None:
+            return
         box, done = self.pending
         self.pending = None
         box["ok"] = ok
         done.set()
-        self.query_one(Input).placeholder = "Type a message…"
         self.note("✓ allowed" if ok else "■ declined", G2)
         self.set_agent_state("executing" if ok else "thinking")
 
