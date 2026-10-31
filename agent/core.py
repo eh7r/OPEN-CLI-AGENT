@@ -82,7 +82,7 @@ def run(task: str, messages: list | None = None, out=None) -> str:
         out.context(context.estimate_tokens(messages, schemas), CONTEXT_TOKENS)
 
         out.model_start(step)
-        reply = ask(messages, schemas, on_token=out.token)
+        reply = ask(messages, schemas, on_token=out.token, cancel=out.check)
         out.model_end()
         messages.append(reply)
         if (reply.content or "").strip():

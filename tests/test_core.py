@@ -34,7 +34,7 @@ class FakeModel:
         self.replies = replies
         self.calls = []
 
-    def __call__(self, messages, tools=None, on_token=None):
+    def __call__(self, messages, tools=None, on_token=None, cancel=None):
         n = len(self.calls)
         self.calls.append({"messages": list(messages), "tools": tools})
         if callable(self.replies):
