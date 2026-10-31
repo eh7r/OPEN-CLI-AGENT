@@ -20,7 +20,7 @@ from agent.events import Cancelled
 from agent.tui_approval import APPROVAL_CSS, ApprovalBox
 from agent.logo import RESET, WHITE as ANSI_WHITE
 from agent.tui_parts import (
-    COMMANDS, CSS, G1, G2, G3, G4, GlowRule, IDLE_HINT, KEYS, Logo, ORDER, PIX, RED, STATE_LABEL,
+    COMMANDS, CSS, CopyToast, G1, G2, G3, G4, GlowRule, IDLE_HINT, KEYS, Logo, ORDER, PIX, RED, STATE_LABEL,
     ActionLog, ThinkingLine, TuiOutput, W, YELLOW, describe, fit_color, glyph, lerp, logo_rows, model_tier,
 )
 
@@ -69,6 +69,14 @@ class AgentApp(App):
         with Horizontal(id="bar"):
             yield Static(IDLE_HINT, id="hint")
             yield Static("", id="ctx")
+        yield CopyToast()
+
+    def copy_to_clipboard(self, text: str) -> None:
+        super().copy_to_clipboard(text)
+        self.query_one(CopyToast).show()
+
+    def action_help_quit(self) -> None:
+        pass
 
     def on_mount(self):
         self.query_one("#p1").border_title = "Commands"
