@@ -150,6 +150,30 @@ class GlowRule(Widget):
         return t
 
 
+class CopyToast(Widget):
+    """Top-right '| Copied to clipboard' with a glowing rule under it."""
+
+    TEXT = "| Copied to clipboard"
+
+    def __init__(self):
+        super().__init__(id="copytoast")
+        self.display = False
+        self._timer = None
+
+    def compose(self):
+        yield Static(Text(self.TEXT, style="bold " + W), id="copytext")
+        yield GlowRule()
+
+    def show(self):
+        self.display = True
+        if self._timer:
+            self._timer.stop()
+        self._timer = self.set_timer(1.5, self.hide)
+
+    def hide(self):
+        self.display = False
+
+
 class Live(Static):
     """A block that animates itself until stop() / interrupt()."""
 
@@ -319,6 +343,12 @@ Input > .input--placeholder {{ color: {G3}; }}
 #bar {{ height: 1; padding: 0 2; }}
 #hint {{ width: 1fr; }}
 #ctx {{ width: auto; }}
+Screen {{ layers: base overlay; }}
+#copytoast {{ layer: overlay; dock: top; width: 100%; height: 2; align-horizontal: right; }}
+#copytext {{ width: 26; height: 1; }}
+#copytoast GlowRule {{ width: 26; height: 1; margin: 0; }}
+Screen > .screen--selection {{ background: #ffffff; color: #000000; }}
+Input > .input--selection {{ background: #ffffff; color: #000000; }}
 """
 
 
