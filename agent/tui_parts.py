@@ -211,6 +211,7 @@ class ThinkingLine(Live):
     """'thinking' decrypts letter by letter, then scrambles again (loop)."""
 
     LABEL = "thinking"
+    WAIT_NOTICE = 30
 
     def __init__(self):
         super().__init__("thinking")
@@ -227,6 +228,8 @@ class ThinkingLine(Live):
             else:
                 t.append(glyph(i, step), style=G3 if lock - cyc > 0.5 else G2)
         t.append(f"  {el:.1f}s", style=G3)
+        if el >= self.WAIT_NOTICE:
+            t.append("  · still waiting for the model (Esc to cancel)", style=G2)
         return t
 
     def done(self):
