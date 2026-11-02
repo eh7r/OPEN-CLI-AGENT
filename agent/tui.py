@@ -88,7 +88,8 @@ class AgentApp(App):
         self.query_one("#p1").border_title = "Commands"
         self.query_one("#p2").border_title = "Keys"
         approval.set_handler(self._approval_handler)
-        threading.Thread(target=model.warm_up, args=(list(self.history), tools.schemas()), daemon=True).start()
+        self.warming = True
+        threading.Thread(target=self._warm, daemon=True).start()
         if not config.SANDBOX:
             self.note("WARNING: sandbox is OFF, commands run with your full permissions.", W)
         self.used = context.estimate_tokens(self.history, tools.schemas())
@@ -112,10 +113,22 @@ class AgentApp(App):
         return self.query_one("#chat", VerticalScroll)
 
     # ----- model line (dot = does the model fit this device?)
+    def _warm(self):
+        model.warm_up(list(self.history), tools.schemas())
+        try:
+            self.call_from_thread(self.warm_done)
+        except Exception:
+            pass
+
+    def warm_done(self):
+        self.warming = False
+        self.update_status()
+
     def update_status(self):
         col = fit_color()
         t = Text.assemble(("● ", col), ("ollama: ", G2), (config.MODEL, f"bold {W}"),
-                          ("  · /model for details", G3))
+                          ("  · warming up, first reply is slow" if getattr(self, "warming", False)
+                           else "  · /model for details", G3))
         if col == RED:
             t.append("  · heavier than this device", style=G3)
         elif col == YELLOW:
