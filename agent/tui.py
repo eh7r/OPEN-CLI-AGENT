@@ -88,7 +88,7 @@ class AgentApp(App):
         self.query_one("#p1").border_title = "Commands"
         self.query_one("#p2").border_title = "Keys"
         approval.set_handler(self._approval_handler)
-        threading.Thread(target=model.warm_up, daemon=True).start()
+        threading.Thread(target=model.warm_up, args=(list(self.history), tools.schemas()), daemon=True).start()
         if not config.SANDBOX:
             self.note("WARNING: sandbox is OFF, commands run with your full permissions.", W)
         self.used = context.estimate_tokens(self.history, tools.schemas())
