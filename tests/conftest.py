@@ -19,3 +19,11 @@ for _name in (
     "AGENT_CONTEXT", "AGENT_MAX_REPLY", "AGENT_TIMEOUT", "AGENT_MAX_OUTPUT", "AGENT_MAX_STEPS",
 ):
     os.environ.pop(_name, None)
+
+
+import pytest as _pytest_rtl
+
+
+@_pytest_rtl.fixture(autouse=True)
+def _rtl_default_bidi(monkeypatch):
+    monkeypatch.setenv("AGENT_RTL_MODE", "bidi")

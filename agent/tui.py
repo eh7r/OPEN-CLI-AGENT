@@ -1,3 +1,4 @@
+import re
 """The full-screen interface of the agent (Textual).
 
 White = where you act, grey = information. The core talks to this file only
@@ -15,7 +16,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Input, Static
 
-from agent import approval, config, context, core, model, tools
+from agent import approval, config, context, core, model, rtl, tools
 from agent.events import Cancelled
 from agent.tui_approval import APPROVAL_CSS, ApprovalBox
 from agent.logo import RESET, WHITE as ANSI_WHITE
@@ -23,6 +24,11 @@ from agent.tui_parts import (
     COMMANDS, CSS, CopyToast, G1, G2, G3, G4, GlowRule, IDLE_HINT, KEYS, Logo, ORDER, PIX, RED, STATE_LABEL,
     ActionLog, ThinkingLine, TuiOutput, W, YELLOW, describe, fit_color, glyph, lerp, logo_rows, model_tier,
 )
+
+
+_HAR = re.compile("[\u064B-\u065F\u0670]")
+_AR = re.compile("[\u0600-\u06FF]")
+_BUL = re.compile(r"(?m)^(\s*)[*-] ")
 
 
 class AgentApp(App):
@@ -145,8 +151,25 @@ class AgentApp(App):
         self.query_one("#ctx", Static).update(t)
 
     # ----- helpers
+    def rtl_text(self, text, extra=0):
+        """Arabic only: wrap to the chat width, then reshape and reorder."""
+        w = self.chat.size.width - 3 - extra
+        if w > 10 and _AR.search(text):
+            text = _BUL.sub(r"\1• ", _HAR.sub("", text.replace("**", "")))
+        return rtl.render(text, w) if w > 10 else text
+
+    def rtl_stream(self, text, trail):
+        """Arabic reply while streaming: the trail sits at the left edge of the last line."""
+        shown = self.rtl_text(text)
+        if shown == text:
+            return None
+        head, nl, last = shown.rpartition("\n")
+        pad = len(last) - len(last.lstrip(" "))
+        k = min(len(trail), pad)
+        return Text.assemble((head + nl, G1), (trail[:k], G3), (last[k:], G1))
+
     def note(self, text, style=G3):
-        self.chat.mount(Static(Text(text, style=style), classes="note"))
+        self.chat.mount(Static(Text(self.rtl_text(text), style=style), classes="note"))
         self.chat.scroll_end(animate=False)
 
     def set_working(self, on):
@@ -191,7 +214,7 @@ class AgentApp(App):
             self.started = True
             self.session_title = text[:40]
             self.fit()
-        self.chat.mount(Static(Text.assemble(("> ", f"bold {W}"), (text, W)), classes="user"))
+        self.chat.mount(Static(Text.assemble(("> ", f"bold {W}"), (self.rtl_text(text, 4), W)), classes="user"))
         self.chat.scroll_end(animate=False)
         self.cancel_flag.clear()
         self.set_working(True)
@@ -321,12 +344,13 @@ class AgentApp(App):
         self.reply_text += text
         n = len(self.reply_text)
         trail = "".join(glyph(n + k, n) for k in range(3))
-        self.reply_w.update(Text.assemble((self.reply_text, G1), (trail, G3)))
+        t = self.rtl_stream(self.reply_text, trail)
+        self.reply_w.update(t if t is not None else Text.assemble((self.reply_text, G1), (trail, G3)))
         self.chat.scroll_end(animate=False)
 
     def ui_reply_end(self):
         if self.reply_w is not None:
-            self.reply_w.update(Text(self.reply_text, style=G1))
+            self.reply_w.update(Text(self.rtl_text(self.reply_text), style=G1))
             self.reply_w = None
 
     def ui_model_end(self):
@@ -359,7 +383,7 @@ class AgentApp(App):
         self.set_agent_state("thinking")
 
     def ui_final(self, text):
-        self.chat.mount(Static(Text(text, style=G1), classes="reply"))
+        self.chat.mount(Static(Text(self.rtl_text(text), style=G1), classes="reply"))
         self.chat.scroll_end(animate=False)
 
     def ui_ctx(self, used):
