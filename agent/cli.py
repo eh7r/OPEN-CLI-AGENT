@@ -26,12 +26,12 @@ def _one_shot(task: str) -> None:
 
 
 def _plain_session() -> None:
-    from agent import core, model
+    from agent import core, model, tools
 
     core.banner()
     console.print("[dim]Type a task. Ctrl+D or 'exit' to quit, Ctrl+C cancels a running task.[/dim]")
-    threading.Thread(target=model.warm_up, daemon=True).start()
     messages = core.new_session()
+    threading.Thread(target=model.warm_up, args=(list(messages), tools.schemas()), daemon=True).start()
 
     while True:
         try:
