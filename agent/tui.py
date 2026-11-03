@@ -6,7 +6,10 @@ through TuiOutput (agent/events.py has the plain-terminal twin).
 """
 import math
 import shutil
+import os as _os
 import threading
+
+from agent import sessions
 import time
 
 from rich.text import Text
@@ -39,9 +42,10 @@ class AgentApp(App):
         Binding("ctrl+l", "clear", "Clear", show=False),
     ]
 
-    def __init__(self):
+    def __init__(self, resume=None):
         super().__init__()
         self.history = core.new_session()
+        self.session = None
         self.working = False
         self.started = False
         self.agent_state = "idle"
@@ -49,6 +53,13 @@ class AgentApp(App):
         self.pending = None            # (box, done) while waiting for y/n
         self.used = 0
         self.session_title = ""
+        if resume:
+            saved = resume["messages"]
+            rest = saved[1:] if saved and saved[0].get("role") == "system" else saved
+            self.history = core.new_session() + rest
+            self.session = resume
+            self.session_title = resume["title"]
+            self.started = True
         self._active = []
         self._pulse = None
         self.think = None
@@ -213,6 +224,17 @@ class AgentApp(App):
         self.query_one("#hint", Static).update(hint)
         self.paint_state()
 
+    def on_ready(self):
+        if self.session is None:
+            return
+        self.fit()
+        self.used = context.estimate_tokens(self.history, tools.schemas())
+        self.update_ctx()
+        self.note(f"Continuing: {self.session['title']}", G1)
+        where = self.session.get("workdir")
+        if where and where != _os.getcwd():
+            self.note(f"Saved in {where}; you are in a different folder.", G2)
+
     # ----- input
     def on_input_submitted(self, event: Input.Submitted):
         text = event.value.strip()
@@ -225,7 +247,7 @@ class AgentApp(App):
             return self.note("Still working — press esc to interrupt.", G2)
         if not self.started:
             self.started = True
-            self.session_title = text[:40]
+            self.session_title = sessions.make_title(text)
             self.fit()
         self.chat.mount(Static(Text.assemble(("> ", f"bold {W}"), (self.rtl_text(text, 4), W)), classes="user"))
         self.chat.scroll_end(animate=False)
@@ -246,6 +268,7 @@ class AgentApp(App):
                 return self.note("Wait for the task to finish (or press esc), then /new.", G2)
             self.action_clear()
             self.history = core.new_session()
+            self.session = None
             self.started = False
             self.session_title = ""
             self.used = context.estimate_tokens(self.history, tools.schemas())
@@ -317,9 +340,12 @@ class AgentApp(App):
         mark = len(self.history)
         cancelled, err, note = False, None, None
         try:
-            if core.run(text, self.history, out=TuiOutput(self)) == core.TOO_BIG:
+            status = core.run(text, self.history, out=TuiOutput(self))
+            if status == core.TOO_BIG:
                 del self.history[mark:]
                 note = "This session is full. Type /new to start a new one."
+            else:
+                self._save(text)
         except Cancelled:
             del self.history[mark:]
             cancelled = True
@@ -333,6 +359,15 @@ class AgentApp(App):
         try:
             self.call_from_thread(self.ui_task_end, time.monotonic() - t0, cancelled, err, note, used)
         except Exception:
+            pass
+
+    def _save(self, text):
+        """Write the session file after a finished task; a failure never stops the agent."""
+        try:
+            if self.session is None:
+                self.session = sessions.create(text, self.history, _os.getcwd())
+            sessions.update(self.session, self.history)
+        except (OSError, ValueError, TypeError):
             pass
 
     # ----- events from the core (run in the app thread)
@@ -425,7 +460,7 @@ class AgentApp(App):
         self.set_working(False)
 
 
-def exit_screen(title):
+def exit_screen(title, session_id=None):
     cols = shutil.get_terminal_size((80, 24)).columns
     _, rows = logo_rows(cols)
     print()
@@ -433,11 +468,13 @@ def exit_screen(title):
         print("  " + ANSI_WHITE + r + RESET)
     print()
     print(f"  \033[2mSession \033[0m  \033[1m{title}\033[0m")
+    if session_id:
+        print(f"  \033[2mContinue \033[0m \033[1magent -s {session_id}\033[0m")
     print()
 
 
-def run():
-    app = AgentApp()
+def run(resume=None):
+    app = AgentApp(resume)
     app.run()
     if app.session_title:
-        exit_screen(app.session_title)
+        exit_screen(app.session_title, app.session["id"] if app.session else None)

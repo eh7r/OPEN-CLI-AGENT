@@ -18,7 +18,8 @@ def _chars(messages) -> int:
     for m in messages:
         total += len(_get(m, "content") or "") + 8
         for call in _get(m, "tool_calls") or []:
-            total += len(call.function.name) + len(str(call.function.arguments)) + 20
+            fn = _get(call, "function")
+            total += len(_get(fn, "name") or "") + len(str(_get(fn, "arguments") or ""))
     return total
 
 
