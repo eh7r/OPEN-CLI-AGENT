@@ -26,13 +26,16 @@ def _one_shot(task: str) -> None:
         console.print(f"[red]Error:[/red] {e}")
 
 
-def _save(session, task, messages):
-    """Write the session file after a finished task; a failure never stops the agent."""
+def _save(session, task, messages, journal):
+    """Write the session file after a task; a failure never stops the agent."""
     from agent import sessions
 
     try:
         if session is None:
-            session = sessions.create(task, messages, os.getcwd())
+            if not any(t.get("outcome") == "done" for t in journal.tasks):
+                return None
+            session = sessions.create(journal.tasks[0]["task"], messages, os.getcwd())
+        session["journal"] = journal.tasks
         sessions.update(session, messages)
     except (OSError, ValueError, TypeError):
         pass
@@ -64,15 +67,19 @@ def _find_session(args: list):
 
 def _plain_session(resume=None) -> None:
     from agent import core, model, tools
+    from agent.events import ConsoleOutput
+    from agent.journal import Journal, Recording
 
     core.banner()
     console.print("[dim]Type a task. Ctrl+D or 'exit' to quit, Ctrl+C cancels a running task.[/dim]")
     messages = core.new_session()
     session = None
+    journal = Journal()
     if resume:
         saved = resume["messages"]
         messages += saved[1:] if saved and saved[0].get("role") == "system" else saved
         session = resume
+        journal = Journal(resume.get("journal"))
         console.print(f"[dim]Continuing: {escape(resume['title'])}[/dim]")
     threading.Thread(target=model.warm_up, args=(list(messages), tools.schemas()), daemon=True).start()
 
@@ -94,21 +101,31 @@ def _plain_session(resume=None) -> None:
             return
 
         mark = len(messages)
+        journal.begin(task)
         try:
-            status = core.run(task, messages)
+            status = core.run(task, messages, out=Recording(ConsoleOutput(), journal))
         except KeyboardInterrupt:
             del messages[mark:]
+            journal.end("cancelled")
+            session = _save(session, task, messages, journal)
             console.print("\n[yellow]Cancelled.[/yellow]")
             continue
         except model.ModelError as e:
             del messages[mark:]
+            journal.end("error", str(e))
+            session = _save(session, task, messages, journal)
             console.print(f"[red]Error:[/red] {e}")
             continue
 
-        if status != core.TOO_BIG:
-            session = _save(session, task, messages)
         if status == core.TOO_BIG:
             del messages[mark:]
+            journal.end("full")
+        elif status == core.STOPPED:
+            journal.end("error", "stopped: repeated blocked calls or step limit")
+        else:
+            journal.end("done")
+        session = _save(session, task, messages, journal)
+        if status == core.TOO_BIG:
             if mark > 1:
                 console.print("[yellow]This session is full. Start a new one by running agent again.[/yellow]")
                 _bye(session)

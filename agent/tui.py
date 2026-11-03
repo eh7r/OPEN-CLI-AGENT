@@ -10,6 +10,7 @@ import os as _os
 import threading
 
 from agent import sessions
+from agent.journal import Journal, Recording
 import time
 
 from rich.text import Text
@@ -46,6 +47,7 @@ class AgentApp(App):
         super().__init__()
         self.history = core.new_session()
         self.session = None
+        self.journal = Journal()
         self.working = False
         self.started = False
         self.agent_state = "idle"
@@ -58,6 +60,7 @@ class AgentApp(App):
             rest = saved[1:] if saved and saved[0].get("role") == "system" else saved
             self.history = core.new_session() + rest
             self.session = resume
+            self.journal = Journal(resume.get("journal"))
             self.session_title = resume["title"]
             self.started = True
         self._active = []
@@ -269,6 +272,7 @@ class AgentApp(App):
             self.action_clear()
             self.history = core.new_session()
             self.session = None
+            self.journal = Journal()
             self.started = False
             self.session_title = ""
             self.used = context.estimate_tokens(self.history, tools.schemas())
@@ -339,22 +343,30 @@ class AgentApp(App):
         t0 = time.monotonic()
         mark = len(self.history)
         cancelled, err, note = False, None, None
+        outcome, why = "done", ""
+        self.journal.begin(text)
         try:
-            status = core.run(text, self.history, out=TuiOutput(self))
+            status = core.run(text, self.history, out=Recording(TuiOutput(self), self.journal))
             if status == core.TOO_BIG:
                 del self.history[mark:]
+                outcome = "full"
                 note = "This session is full. Type /new to start a new one."
-            else:
-                self._save(text)
+            elif status == core.STOPPED:
+                outcome, why = "error", "stopped: repeated blocked calls or step limit"
         except Cancelled:
             del self.history[mark:]
             cancelled = True
+            outcome = "cancelled"
         except model.ModelError as e:
             del self.history[mark:]
             err = str(e)
+            outcome, why = "error", err
         except Exception as e:
             del self.history[mark:]
             err = f"{type(e).__name__}: {e}"
+            outcome, why = "error", err
+        self.journal.end(outcome, why)
+        self._save(text)
         used = context.estimate_tokens(self.history, tools.schemas())
         try:
             self.call_from_thread(self.ui_task_end, time.monotonic() - t0, cancelled, err, note, used)
@@ -362,10 +374,13 @@ class AgentApp(App):
             pass
 
     def _save(self, text):
-        """Write the session file after a finished task; a failure never stops the agent."""
+        """Write the session file after a task; a failure never stops the agent."""
         try:
             if self.session is None:
-                self.session = sessions.create(text, self.history, _os.getcwd())
+                if not any(t.get("outcome") == "done" for t in self.journal.tasks):
+                    return
+                self.session = sessions.create(self.session_title or text, self.history, _os.getcwd())
+            self.session["journal"] = self.journal.tasks
             sessions.update(self.session, self.history)
         except (OSError, ValueError, TypeError):
             pass
