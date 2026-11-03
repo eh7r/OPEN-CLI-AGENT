@@ -3,6 +3,7 @@
 MAX_TASKS = 200
 TASK_CHARS = 200
 ARGS_CHARS = 200
+ARG_VALUE_CHARS = 150
 RESULT_CHARS = 300
 REPLY_CHARS = 600
 
@@ -14,6 +15,13 @@ def _cut(value, limit: int) -> str:
     if len(text) > limit:
         text = text[: limit - 3].rstrip() + "..."
     return text
+
+
+def _args(args):
+    """A dict keeps its keys (each value cut), so the path of a long write survives."""
+    if isinstance(args, dict):
+        return {str(k): _cut(v, ARG_VALUE_CHARS) for k, v in args.items()}
+    return _cut(args, ARGS_CHARS)
 
 
 class Journal:
@@ -39,7 +47,7 @@ class Journal:
             return
         self._cur["tools"].append({
             "name": str(name),
-            "args": _cut(args, ARGS_CHARS),
+            "args": _args(args),
             "status": str(status),
             "result": _cut(result, RESULT_CHARS),
         })

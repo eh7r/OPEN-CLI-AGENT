@@ -134,3 +134,11 @@ def test_journal_roundtrips_inside_a_session_file(tmp_path, monkeypatch):
     sessions.save(s)
     back = Journal(sessions.load(s["id"])["journal"])
     assert back.tasks[0]["tools"][0]["name"] == "terminal"
+
+
+def test_dict_args_keep_every_key_even_when_a_value_is_long():
+    j = Journal()
+    j.begin("t")
+    j.tool("write_file", {"content": "x" * 5000, "path": "a.txt"}, "ok", "Wrote")
+    args = j.tasks[0]["tools"][0]["args"]
+    assert args["path"] == "a.txt" and len(args["content"]) <= 150
