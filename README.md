@@ -1,6 +1,6 @@
  <div align="center">
 
-<img src="docs/assets/open-cli-agent.gif" width="100%" alt="OPEN CLI AGENT" />
+
 
 <hr />
 
