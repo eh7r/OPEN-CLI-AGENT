@@ -34,7 +34,7 @@ def _trace(chunk, n_messages, wall):
         pass
 
 
-def ask(messages: list, tools: list | None = None, on_token=None, cancel=None):
+def ask(messages: list, tools: list | None = None, on_token=None, cancel=None, max_tokens: int | None = None):
     """Send messages to the model; stream the text through on_token; return the reply.
     cancel() is called every 0.1s while waiting and may raise to stop waiting."""
     parts, calls = [], []
@@ -49,7 +49,7 @@ def ask(messages: list, tools: list | None = None, on_token=None, cancel=None):
                 tools=tools,
                 think=THINK,
                 keep_alive="30m",
-                options={"num_ctx": CONTEXT_TOKENS, "num_predict": MAX_REPLY_TOKENS},
+                options={"num_ctx": CONTEXT_TOKENS, "num_predict": max_tokens or MAX_REPLY_TOKENS},
                 stream=True,
             )
             for chunk in stream:

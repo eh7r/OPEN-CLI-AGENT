@@ -105,6 +105,40 @@ def build(session_id, workdir, tasks, model_text: str = "") -> str:
     return "\n".join(out).rstrip() + "\n"
 
 
+MODEL_INPUT_CHARS = 1500
+MODEL_TOKENS = 200
+MODEL_PROMPT = (
+    "Below are the facts of a coding-agent session. Write at most 5 short bullet points: "
+    "what is left to do and tips for continuing. Use only these facts, do not invent anything. "
+    "Reply in the same language as the tasks."
+)
+
+
+def _cut(text: str, limit: int = MODEL_INPUT_CHARS) -> str:
+    """Keep the start (tasks) and the end (problems, last reply) of a long handoff."""
+    if len(text) <= limit:
+        return text
+    half = limit // 2
+    return text[:half] + "\n...\n" + text[-half:]
+
+
+def model_section(text: str, ask=None, cancel=None) -> str:
+    """Short model-written next steps from the code-built handoff; "" on any failure."""
+    if ask is None:
+        from agent import model
+
+        ask = model.ask
+    messages = [
+        {"role": "system", "content": MODEL_PROMPT},
+        {"role": "user", "content": _cut(text)},
+    ]
+    try:
+        reply = ask(messages, None, cancel=cancel, max_tokens=MODEL_TOKENS)
+        return (getattr(reply, "content", "") or "").strip()
+    except Exception:
+        return ""
+
+
 def handoffs_dir() -> str:
     return os.path.join(os.path.dirname(sessions.sessions_dir()), "handoffs")
 
