@@ -162,3 +162,18 @@ def save(session_id: str, text: str) -> str:
         except OSError:
             pass
         raiseo
+
+
+def generate(session_id, workdir, tasks, ask=None, cancel=None, use_model=True):
+    """Build the handoff, add the model section when possible, save it.
+    Returns (path, text); path is None when the session is unsaved or the write fails."""
+    base = build(session_id, workdir, tasks)
+    extra = model_section(base, ask=ask, cancel=cancel) if use_model else ""
+    text = build(session_id, workdir, tasks, extra) if extra else base
+    path = None
+    if session_id:
+        try:
+            path = save(session_id, text)
+        except (OSError, ValueError):
+            path = None
+    return path, text
