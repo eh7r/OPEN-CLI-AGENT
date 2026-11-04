@@ -11,6 +11,7 @@ import threading
 
 from agent import sessions
 from agent.journal import Journal, Recording
+from agent import handoff
 import time
 
 from rich.text import Text
@@ -54,6 +55,7 @@ class AgentApp(App):
         self.cancel_flag = threading.Event()
         self.pending = None            # (box, done) while waiting for y/n
         self.used = 0
+        self.auto_handoff = False
         self.session_title = ""
         if resume:
             saved = resume["messages"]
@@ -274,10 +276,13 @@ class AgentApp(App):
             self.session = None
             self.journal = Journal()
             self.started = False
+            self.auto_handoff = False
             self.session_title = ""
             self.used = context.estimate_tokens(self.history, tools.schemas())
             self.update_ctx()
             self.fit()
+        elif cmd == "/handoff":
+            self.start_handoff()
         elif cmd == "/help":
             self.action_help()
         elif cmd == "/context":
@@ -290,7 +295,7 @@ class AgentApp(App):
             self.note(f"unknown command: {cmd} · /help", G2)
 
     def action_help(self):
-        self.note("/help /clear /new /context /model /exit", G1)
+        self.note("/help /clear /new /context /model /handoff /exit", G1)
 
     def action_clear(self):
         self.chat.remove_children()
@@ -473,6 +478,41 @@ class AgentApp(App):
         elif used >= config.CONTEXT_TOKENS * 0.85:
             self.note("Context is almost full — open a new session with /new", W)
         self.set_working(False)
+        if (note or used >= config.CONTEXT_TOKENS * 0.85) and not self.auto_handoff and self.journal.tasks:
+            self.auto_handoff = True
+            self.start_handoff()
+
+    def _cancel_check(self):
+        if self.cancel_flag.is_set():
+            raise Cancelled()
+
+    def start_handoff(self):
+        if self.working:
+            return self.note("Wait for the task to finish (or press esc), then /handoff.", G2)
+        if not self.journal.tasks:
+            return self.note("Nothing to hand off yet.", G2)
+        self.note("Writing the handoff... (esc skips the model part)", G1)
+        self.cancel_flag.clear()
+        self.set_working(True)
+        self.set_agent_state("analyzing")
+        self.run_worker(self._handoff_work, thread=True, exclusive=True, exit_on_error=False)
+
+    def _handoff_work(self):
+        sid = self.session["id"] if self.session else None
+        tasks = list(self.journal.tasks)
+        try:
+            path, text = handoff.generate(sid, _os.getcwd(), tasks, cancel=self._cancel_check)
+        except Cancelled:
+            path, text = handoff.generate(sid, _os.getcwd(), tasks, use_model=False)
+        try:
+            self.call_from_thread(self.ui_handoff_done, path, text)
+        except Exception:
+            pass
+
+    def ui_handoff_done(self, path, text):
+        self.set_working(False)
+        self.note(text, G1)
+        self.note(f"Handoff saved: {path}" if path else "Handoff not saved (no saved session yet).", G1)
 
 
 def exit_screen(title, session_id=None):
