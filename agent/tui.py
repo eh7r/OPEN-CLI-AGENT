@@ -282,7 +282,7 @@ class AgentApp(App):
             self.update_ctx()
             self.fit()
         elif cmd == "/handoff":
-            self.start_handoff()
+            self.start_handoff(copy=True)
         elif cmd == "/help":
             self.action_help()
         elif cmd == "/context":
@@ -486,7 +486,7 @@ class AgentApp(App):
         if self.cancel_flag.is_set():
             raise Cancelled()
 
-    def start_handoff(self):
+    def start_handoff(self, copy=False):
         if self.working:
             return self.note("Wait for the task to finish (or press esc), then /handoff.", G2)
         if not self.journal.tasks:
@@ -495,9 +495,9 @@ class AgentApp(App):
         self.cancel_flag.clear()
         self.set_working(True)
         self.set_agent_state("analyzing")
-        self.run_worker(self._handoff_work, thread=True, exclusive=True, exit_on_error=False)
+        self.run_worker(lambda: self._handoff_work(copy), thread=True, exclusive=True, exit_on_error=False)
 
-    def _handoff_work(self):
+    def _handoff_work(self, copy=False):
         sid = self.session["id"] if self.session else None
         tasks = list(self.journal.tasks)
         try:
@@ -505,14 +505,19 @@ class AgentApp(App):
         except Cancelled:
             path, text = handoff.generate(sid, _os.getcwd(), tasks, use_model=False)
         try:
-            self.call_from_thread(self.ui_handoff_done, path, text)
+            self.call_from_thread(self.ui_handoff_done, path, text, copy)
         except Exception:
             pass
 
-    def ui_handoff_done(self, path, text):
+    def ui_handoff_done(self, path, text, copy=False):
         self.set_working(False)
         self.note(text, G1)
         self.note(f"Handoff saved: {path}" if path else "Handoff not saved (no saved session yet).", G1)
+        if copy:
+            try:
+                self.copy_to_clipboard(text)
+            except Exception:
+                self.note("Could not copy to the clipboard.", G2)
 
 
 def exit_screen(title, session_id=None):
