@@ -1,26 +1,16 @@
  <div align="center">
 
-<!-- HERO GIF: Place your animation at docs/assets/open-cli-agent.gif -->
 <img src="docs/assets/open-cli-agent.gif" width="100%" alt="OPEN CLI AGENT" />
 
 <hr />
 
-<!-- LANGUAGE SWITCHER -->
-<a href="README.md">English</a> &nbsp; | &nbsp; <a href="README.ar.md">العربية</a>
-
 </div>
 
-<!-- PROJECT DESCRIPTION -->
+<!-- PROJECT OVERVIEW -->
+
 <div align="center">
 
-<!-- Add project description here -->
-
-</div>
-
-<!-- QUICK NAVIGATION -->
-<div align="center">
-
-[Preview](#preview) &nbsp; · &nbsp; [Architecture](#architecture) &nbsp; · &nbsp; [Features](#features) &nbsp; · &nbsp; [Installation](#installation)
+<img src="docs/assets/ai_agent_github_en.png" width="100%" alt="Project Overview" />
 
 </div>
 
@@ -28,56 +18,66 @@
 
 ## Preview
 
-<!-- Add demo video here -->
+<!-- VIDEO PREVIEW -->
 
-<!-- Add product screenshot here -->
+[Watch the Demo](docs/assets/preview.mp4)
 
 ---
 
 ## Architecture
 
-<!-- Add your existing architecture diagram here -->
+<div align="center">
+
+<img src="docs/assets/architecture.jpg" width="100%" alt="System Architecture" />
+
+</div>
 
 ---
 
 ## Features
 
-<!-- Add feature cards or feature list here -->
+<!-- FEATURE CONTENT -->
 
 ---
 
 ## Installation
 
-<!-- Add installation instructions here -->
+<!-- INSTALLATION CONTENT -->
 
 ---
 
 ## Usage
 
-<!-- Add usage examples here -->
+<!-- USAGE CONTENT -->
 
 ---
 
 ## Configuration
 
-<!-- Add configuration details here -->
+<!-- CONFIGURATION CONTENT -->
+
+---
+
+## Project Structure
+
+<!-- PROJECT STRUCTURE -->
 
 ---
 
 ## Roadmap
 
-<!-- Add roadmap here -->
+<!-- ROADMAP -->
 
 ---
 
 ## Contributing
 
-<!-- Add contribution guidelines here -->
+<!-- CONTRIBUTING -->
 
 ---
 
 <div align="center">
 
-<!-- FOOTER LINKS -->
+<!-- FOOTER -->
 
 </div>
