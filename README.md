@@ -20,7 +20,9 @@
 
 <!-- VIDEO PREVIEW -->
 
-[Watch the Demo](docs/assets/preview.mp4)
+<div align="center">
+  <img src="docs/assets/preview.gif" width="100%" alt="OPEN CLI AGENT Demo" />
+</div>
 
 ---
 
