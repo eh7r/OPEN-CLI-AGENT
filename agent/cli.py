@@ -42,6 +42,27 @@ def _save(session, task, messages, journal):
     return session
 
 
+def _handoff(session, journal) -> None:
+    """Print and save the handoff; Ctrl+C skips the model-written part."""
+    from agent import handoff
+
+    if not journal.tasks:
+        console.print("[yellow]Nothing to hand off yet.[/yellow]")
+        return
+    sid = session["id"] if session else None
+    tasks = list(journal.tasks)
+    console.print("[dim]Writing the handoff... (Ctrl+C skips the model part)[/dim]")
+    try:
+        path, text = handoff.generate(sid, os.getcwd(), tasks)
+    except KeyboardInterrupt:
+        path, text = handoff.generate(sid, os.getcwd(), tasks, use_model=False)
+    console.print(text, markup=False, highlight=False)
+    if path:
+        console.print(f"[dim]Handoff saved:[/dim] {escape(path)}")
+    else:
+        console.print("[dim]Handoff not saved (no saved session yet).[/dim]")
+
+
 def _bye(session) -> None:
     if session:
         console.print(f"[dim]Session[/dim]  {escape(session['title'])}")
@@ -99,6 +120,9 @@ def _plain_session(resume=None) -> None:
         if task.lower() in EXIT_WORDS:
             _bye(session)
             return
+        if task.lower() == "/handoff":
+            _handoff(session, journal)
+            continue
 
         mark = len(messages)
         journal.begin(task)
@@ -128,6 +152,7 @@ def _plain_session(resume=None) -> None:
         if status == core.TOO_BIG:
             if mark > 1:
                 console.print("[yellow]This session is full. Start a new one by running agent again.[/yellow]")
+                _handoff(session, journal)
                 _bye(session)
                 return
 
