@@ -1,19 +1,6 @@
- <div align="center">
-
-
-
-<hr />
-
-</div>
-
-<!-- PROJECT OVERVIEW -->
-
 <div align="center">
-
-<img src="docs/assets/ai_agent_github_en.png" width="100%" alt="Project Overview" />
-
+  <img src="docs/assets/ai_agent_github_en.png" width="100%" alt="OPEN CLI AGENT Overview" />
 </div>
-
 ---
 
 ## Preview
