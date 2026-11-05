@@ -152,3 +152,115 @@ Your request → Model → Tool call → Permission layer → Sandbox → Result
 - **Sandbox by default**: no network, home directory hidden, `/usr` and `.git` read-only.
 - **Refusal is final.** If you decline, the agent must not try another tool to get around it.
 - **No blind retries** of dangerous actions; the
+
+
+---
+
+## ✦ Architecture
+
+<div align="center">
+  <img src="docs/assets/architecture.jpg" width="100%" alt="System architecture" />
+</div>
+
+<br/>
+
+<div align="center">
+  <img src="docs/assets/architecture1.jpg" width="100%" alt="Architecture details" />
+</div>
+
+<details>
+<summary><b>Project structure</b></summary>
+
+<br/>
+
+```text
+OPEN-CLI-AGENT/
+├── main.py              entry point
+├── agent/
+│   ├── core.py          agent loop
+│   ├── model.py         Ollama adapter (streaming, warm-up, cancel)
+│   ├── tools.py         tool registry + validation
+│   ├── permissions.py   permission layer
+│   ├── approval.py      approval flow
+│   ├── sandbox.py       bubblewrap sandbox
+│   ├── shell.py         command execution
+│   ├── file_tools.py    read / write / list
+│   ├── git_tools.py     status / diff / commit
+│   ├── evaluate.py      observe + retry rules
+│   ├── context.py       context trimming
+│   ├── memory.py        notes (SQLite)
+│   ├── sessions.py      saved sessions
+│   ├── journal.py       session journal
+│   ├── handoff.py       handoff generation
+│   ├── rtl.py           Arabic RTL rendering
+│   ├── tui.py           full-screen interface
+│   ├── tui_parts.py     widgets and theme
+│   ├── events.py        core → UI events
+│   ├── cli.py           plain session
+│   └── setup.py         first-run wizard
+├── tests/               pytest suite
+└── docs/                guides and assets
+```
+
+</details>
+
+---
+
+## ✦ Configuration
+
+Saved in `~/.config/ai-agent/config.json`. Environment variables override it.
+
+| Variable | Effect |
+|---|---|
+| `AGENT_SANDBOX=off` | Disable the sandbox (prints a warning) |
+| `AGENT_SANDBOX_NET=1` | Allow network inside the sandbox |
+| `AGENT_THINK=1` | Enable model "thinking" (slower) |
+| `AGENT_RTL=on\|off` | Force Arabic RTL processing |
+| `AGENT_RTL_MODE=words\|bidi` | Choose the RTL strategy |
+| `AGENT_TRACE=1` | Log request timings to `/tmp/agent-trace.log` |
+
+Sessions are stored in `~/.local/share/ai-agent/sessions/`.
+
+---
+
+## ✦ Development
+
+```bash
+pip install -r requirements-dev.txt
+pytest -q
+```
+
+---
+
+## ✦ Roadmap
+
+- [x] Agent core, tool registry, permission layer
+- [x] Real terminal, file, and Git tools
+- [x] bubblewrap sandbox
+- [x] Notes memory and context management
+- [x] First-run wizard and streaming replies
+- [x] Full-screen TUI with approval dialog
+- [x] Arabic RTL display
+- [x] Saved sessions and handoff
+- [ ] `/sessions`, `/notes`, `/memory`, `/setup` commands
+- [ ] Packaging (`pipx install`)
+- [ ] Skills
+- [ ] Connectors (GitHub, browser)
+- [ ] Testing across all three model tiers
+- [ ] First official release
+
+---
+
+## ✦ Contributing
+
+Ideas and bug reports are welcome. Open an [issue](https://github.com/eh7r/OPEN-CLI-AGENT/issues). Pull requests will open up once the project leaves the work-in-progress stage.
+
+---
+
+<div align="center">
+
+Built by [**Yazeed**](https://github.com/eh7r) · [Yazeed Labs](https://www.youtube.com/@YazeedLabs)
+
+<sub>OPEN CLI AGENT · local · private · yours</sub>
+
+</div>
