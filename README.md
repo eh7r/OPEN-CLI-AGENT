@@ -11,7 +11,10 @@
 ![Ollama](https://img.shields.io/badge/RUNS%20ON-OLLAMA-black?style=for-the-badge)
 ![Sandbox](https://img.shields.io/badge/SANDBOX-BUBBLEWRAP-green?style=for-the-badge)
 
+                **English** · [العربية](README.ar.md)
+
 <br/>
+
 
 [Preview](#-preview) · [Features](#-features) · [Quick Start](#-quick-start) · [Usage](#-usage) · [Security](#-security-model) · [Architecture](#-architecture) · [Roadmap](#-roadmap)
 
