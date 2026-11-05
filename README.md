@@ -164,10 +164,6 @@ Your request → Model → Tool call → Permission layer → Sandbox → Result
 
 <br/>
 
-<div align="center">
-  <img src="docs/assets/architecture1.jpg" width="100%" alt="Architecture details" />
-</div>
-
 <details>
 <summary><b>Project structure</b></summary>
 
