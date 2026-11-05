@@ -23,6 +23,14 @@
 
 <br/>
 
+##Project Overview
+<div align="center">
+
+<img src="docs/assets/ai_agent_github_en.png" width="100%" alt="OPEN CLI AGENT" />
+
+<br/><br/>
+
+
 > [!WARNING]
 > **Work in Progress.** This is an active project, not an official release yet. Expect rough edges; commands and behavior may change.
 
