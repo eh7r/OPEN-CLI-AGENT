@@ -2,7 +2,8 @@
 
 # OPEN CLI AGENT
 
-### وكيلك الذكي المحلي للطرفية.<br/>خاص. معزول. يستأذنك قبل أن يتصرف.
+### وكيل ذكاء اصطناعي محلي يعمل من الطرفية.
+**خصوصية محلية. صلاحيات واضحة. تحكّم كامل.**
 
 <br/>
 
@@ -10,14 +11,14 @@
 
 <br/>
 
-![Status](https://img.shields.io/badge/STATUS-WORK%20IN%20PROGRESS-orange?style=for-the-badge)
-![Python](https://img.shields.io/badge/PYTHON-3.14-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![Ollama](https://img.shields.io/badge/RUNS%20ON-OLLAMA-black?style=for-the-badge)
-![Sandbox](https://img.shields.io/badge/SANDBOX-BUBBLEWRAP-green?style=for-the-badge)
+<img src="https://img.shields.io/badge/STATUS-WORK_IN_PROGRESS-orange?style=flat-square&labelColor=111111" />
+<img src="https://img.shields.io/badge/PYTHON-3.14-white?style=flat-square&logo=python&logoColor=white&labelColor=111111" />
+<img src="https://img.shields.io/badge/ENGINE-OLLAMA-white?style=flat-square&labelColor=111111" />
+<img src="https://img.shields.io/badge/SANDBOX-BUBBLEWRAP-white?style=flat-square&labelColor=111111" />
 
 <br/>
 
-[المعاينة](#-المعاينة) · [المميزات](#-المميزات) · [البدء السريع](#-البدء-السريع) · [الاستخدام](#-الاستخدام) · [الأمان](#-نموذج-الأمان) · [البنية](#-البنية) · [خارطة الطريق](#-خارطة-الطريق)
+[المعاينة](#-المعاينة) · [المميزات](#-المميزات) · [التثبيت](#-البدء-السريع) · [الاستخدام](#-الاستخدام) · [الأمان](#-نموذج-الأمان) · [البنية](#-البنية) · [خارطة الطريق](#-خارطة-الطريق)
 
 </div>
 
@@ -26,11 +27,9 @@
 <div dir="rtl">
 
 > [!WARNING]
-> **قيد التطوير.** المشروع نشط وليس إصداراً رسمياً بعد. توقّع بعض الخشونة، وقد تتغير الأوامر والسلوك.
+> **المشروع قيد التطوير.** قد تتغير بعض الأوامر والميزات قبل الإصدار الرسمي.
 
 </div>
-
-<br/>
 
 <div align="center">
   <img src="docs/assets/ai_agent_github.png" width="100%" alt="نظرة عامة على OPEN CLI AGENT" />
@@ -45,252 +44,93 @@
 </div>
 
 <div align="center">
-  <img src="docs/assets/preview.gif" width="100%" alt="عرض OPEN CLI AGENT" />
+  <img src="docs/assets/preview.gif" width="100%" alt="معاينة تشغيل OPEN CLI AGENT" />
 </div>
 
 ---
 
 <div dir="rtl">
-
-## ✦ لماذا
-
-أغلب وكلاء البرمجة تعمل في السحابة وتنفّذ أوامر على جهازك برقابة قليلة. **OPEN CLI AGENT** يعكس ذلك:
-
-- **محلي 100%.** النماذج تعمل عبر [Ollama](https://ollama.com). بدون مفاتيح API، وبياناتك لا تغادر جهازك.
-- **آمن بالتصميم.** كل أمر يمر على طبقة صلاحيات ويعمل داخل صندوق معزول.
-- **مناسب لأي جهاز.** اختر مستوى النموذج الذي يناسب جهازك.
-- **السرعة أولاً.** تسخين مسبق للنموذج وطلبات قابلة للإلغاء تبقيه سريع الاستجابة.
-
----
 
 ## ✦ المميزات
 
-| | |
-|---|---|
-| 🖥️ **واجهة TUI كاملة** | واجهة هادئة أحادية اللون، كتل للأدوات، شريط استهلاك السياق، و`Esc` للإيقاف |
-| 🔐 **طبقة الصلاحيات** | الأوامر الآمنة تعمل، الخطرة تُحظر، والباقي يطلب موافقتك |
-| 📦 **صندوق معزول** | bubblewrap: الشبكة مغلقة، المجلد الشخصي مخفي، و`.git` للقراءة فقط |
-| 🧰 **الأدوات** | الطرفية، قراءة وكتابة الملفات (داخل مجلد العمل فقط)، وGit (status/diff/commit) |
-| 🧠 **ذاكرة الملاحظات** | ملاحظات لكل مشروع، تُحفظ دائماً بموافقتك الصريحة |
-| 💾 **جلسات محفوظة** | استأنف أي جلسة بـ `-c` أو `-s <id>` |
-| 🔁 **تسليم ذكي (Handoff)** | عند امتلاء السياق تحصل على ملخص جاهز للنسخ لمتابعة العمل في جلسة جديدة |
-| 🌍 **دعم العربية (RTL)** | عرض صحيح من اليمين لليسار، مع الإنجليزية والأرقام المختلطة |
-| ⚙️ **ثلاثة مستويات للنماذج** | خفيف ومتوسط وقوي، تختاره حسب جهازك في معالج الإعداد الأول |
+واجهة طرفية متكاملة لتشغيل وكيل ذكاء اصطناعي محلي، مع أدوات فعلية ونظام صلاحيات وبيئة تنفيذ معزولة.
+
+</div>
+
+<table>
+<tr>
+<td align="center" width="33%">
+<h3>⌘ واجهة طرفية</h3>
+واجهة TUI تفاعلية تعرض الأدوات والسياق وحالة التنفيذ.
+</td>
+<td align="center" width="33%">
+<h3>◈ نماذج محلية</h3>
+تشغيل النماذج عبر Ollama دون الحاجة إلى مفاتيح API.
+</td>
+<td align="center" width="33%">
+<h3>⛨ نظام صلاحيات</h3>
+مراجعة الأوامر وطلب موافقتك قبل تنفيذ الإجراءات الحساسة.
+</td>
+</tr>
+<tr>
+<td align="center">
+<h3>▣ بيئة معزولة</h3>
+تنفيذ الأدوات داخل Sandbox باستخدام Bubblewrap.
+</td>
+<td align="center">
+<h3>⌘ أدوات عملية</h3>
+التعامل مع الطرفية والملفات ومستودعات Git.
+</td>
+<td align="center">
+<h3>◉ ذاكرة وجلسات</h3>
+حفظ الجلسات وملاحظات المشاريع واستئناف العمل.
+</td>
+</tr>
+<tr>
+<td align="center">
+<h3>↔ دعم العربية</h3>
+عرض النصوص العربية من اليمين إلى اليسار (RTL).
+</td>
+<td align="center">
+<h3>⇄ إدارة السياق</h3>
+تقليص السياق وإنشاء ملخص لمتابعة العمل.
+</td>
+<td align="center">
+<h3>⚙ مستويات النماذج</h3>
+اختيار نموذج يناسب إمكانيات جهازك.
+</td>
+</tr>
+</table>
 
 <details>
-<summary><b>مستويات النماذج</b></summary>
+<summary><b>تفاصيل مستويات النماذج</b></summary>
 
-<br/>
-
-| المستوى | النموذج | مناسب لـ |
+| المستوى | النموذج | الاستخدام |
 |---|---|---|
-| خفيف | `gemma4:e2b` | الأجهزة ذات الذاكرة القليلة |
-| متوسط | `gemma4:e4b` | أغلب اللابتوبات |
-| قوي | `gpt-oss:20b` | الأجهزة القوية |
+| خفيف | `gemma4:e2b` | الأجهزة محدودة الذاكرة |
+| متوسط | `gemma4:e4b` | أغلب الأجهزة الشخصية |
+| قوي | `gpt-oss:20b` | الأجهزة ذات الإمكانيات الأعلى |
 
-معالج الإعداد الأول يقترح مستوى حسب الذاكرة (RAM). يمكنك تغييره في أي وقت بـ `--setup`.
+يقترح معالج الإعداد الأول مستوى مناسبًا وفقًا لذاكرة الجهاز (RAM)، ويمكن تشغيله مجددًا باستخدام `--setup`.
 
 </details>
 
 ---
+
+<div dir="rtl">
 
 ## ✦ البدء السريع
 
-**المتطلبات:** Python 3، و[Ollama](https://ollama.com)، و[bubblewrap](https://github.com/containers/bubblewrap) (لينكس).
+**المتطلبات:**
+- Linux
+- Python 3.14
+- [Ollama](https://ollama.com)
+- [Bubblewrap](https://github.com/containers/bubblewrap)
+
+### 1. تحميل المشروع
 
 </div>
 
 ```bash
-# 1. استنساخ المشروع
 git clone https://github.com/eh7r/OPEN-CLI-AGENT.git
 cd OPEN-CLI-AGENT
-
-# 2. البيئة
-python -m venv .venv
-source .venv/bin/activate        # fish: source .venv/bin/activate.fish
-pip install -r requirements.txt
-
-# 3. تحميل نموذج (اختر مستواك)
-ollama pull gemma4:e4b
-
-# 4. التشغيل
-python main.py
-```
-
-<div dir="rtl">
-
-عند أول تشغيل، يسألك معالج قصير عن مستوى النموذج ولغة العرض.
-
----
-
-## ✦ الاستخدام
-
-</div>
-
-```bash
-python main.py              # الواجهة الكاملة (TUI)
-python main.py --plain      # جلسة الطرفية العادية
-python main.py -c           # متابعة آخر جلسة
-python main.py -s <id>      # متابعة جلسة محددة
-python main.py --setup      # إعادة معالج الإعداد
-python main.py --notes      # عرض الملاحظات المحفوظة
-```
-
-<div dir="rtl">
-
-### أوامر الشرطة المائلة
-
-| الأمر | وظيفته |
-|---|---|
-| `/help` | عرض الأوامر والاختصارات |
-| `/new` | بدء جلسة جديدة |
-| `/clear` | مسح الشاشة |
-| `/context` | عرض استهلاك السياق |
-| `/model` | عرض تفاصيل النموذج |
-| `/handoff` | نسخ ملخص المتابعة إلى الحافظة |
-| `/exit` | الحفظ والخروج |
-
-اضغط **Esc** لإيقاف مهمة قيد التنفيذ. إذا امتلأ السياق يُنشأ الـ handoff تلقائياً عند 85%.
-
----
-
-## ✦ نموذج الأمان
-
-الأمان هو جوهر هذا المشروع وليس إضافة.
-
-</div>
-
-```text
-Your request → Model → Tool call → Permission layer → Sandbox → Result
-                                        │
-                                        ├─ blocked   dangerous commands never run
-                                        ├─ ask       you approve each risky action
-                                        └─ allowed   known-safe commands only
-```
-
-<div dir="rtl">
-
-- **نافذة موافقة** لكل كتابة وcommit وأمر غير معروف، تعرض الإجراء بالضبط.
-- **أدوات الملفات مقيّدة** بمجلد العمل، والملفات الحساسة (`.env`، المفاتيح) محظورة.
-- **صندوق معزول افتراضياً**: بدون شبكة، المجلد الشخصي مخفي، و`/usr` و`.git` للقراءة فقط.
-- **الرفض نهائي.** إذا رفضت، لا يحق للوكيل تجربة أداة أخرى للالتفاف عليه.
-- **لا إعادة محاولة عمياء** للإجراءات الخطرة، والاستدعاء نفسه يُنفَّذ مرتين كحد أقصى.
-- **الملاحظات بيانات غير موثوقة.** تُعرض للنموذج كبيانات وليس كتعليمات.
-- **جرى اختبار حقن التعليمات (Prompt Injection)**: التعليمات المخفية داخل الملفات تُرفض.
-
----
-
-## ✦ البنية
-
-</div>
-
-<div align="center">
-  <img src="docs/assets/architecture.jpg" width="100%" alt="بنية النظام" />
-</div>
-
-<div dir="rtl">
-
-<details>
-<summary><b>هيكل المشروع</b></summary>
-
-</div>
-
-```text
-OPEN-CLI-AGENT/
-├── main.py              entry point
-├── agent/
-│   ├── core.py          agent loop
-│   ├── model.py         Ollama adapter (streaming, warm-up, cancel)
-│   ├── tools.py         tool registry + validation
-│   ├── permissions.py   permission layer
-│   ├── approval.py      approval flow
-│   ├── sandbox.py       bubblewrap sandbox
-│   ├── shell.py         command execution
-│   ├── file_tools.py    read / write / list
-│   ├── git_tools.py     status / diff / commit
-│   ├── evaluate.py      observe + retry rules
-│   ├── context.py       context trimming
-│   ├── memory.py        notes (SQLite)
-│   ├── sessions.py      saved sessions
-│   ├── journal.py       session journal
-│   ├── handoff.py       handoff generation
-│   ├── rtl.py           Arabic RTL rendering
-│   ├── tui.py           full-screen interface
-│   ├── tui_parts.py     widgets and theme
-│   ├── events.py        core → UI events
-│   ├── cli.py           plain session
-│   └── setup.py         first-run wizard
-├── tests/               pytest suite
-└── docs/                guides and assets
-```
-
-<div dir="rtl">
-
-</details>
-
----
-
-## ✦ الإعدادات
-
-تُحفظ في `~/.config/ai-agent/config.json`. ومتغيرات البيئة لها الأولوية عليها.
-
-| المتغير | تأثيره |
-|---|---|
-| `AGENT_SANDBOX=off` | تعطيل الصندوق المعزول (مع تحذير) |
-| `AGENT_SANDBOX_NET=1` | السماح بالشبكة داخل الصندوق |
-| `AGENT_THINK=1` | تفعيل "تفكير" النموذج (أبطأ) |
-| `AGENT_RTL=on\|off` | فرض معالجة RTL للعربية |
-| `AGENT_RTL_MODE=words\|bidi` | اختيار استراتيجية RTL |
-| `AGENT_TRACE=1` | تسجيل أزمنة الطلبات في `/tmp/agent-trace.log` |
-
-الجلسات تُحفظ في `~/.local/share/ai-agent/sessions/`.
-
----
-
-## ✦ التطوير
-
-</div>
-
-```bash
-pip install -r requirements-dev.txt
-pytest -q
-```
-
-<div dir="rtl">
-
----
-
-## ✦ خارطة الطريق
-
-- [x] نواة الوكيل، سجل الأدوات، طبقة الصلاحيات
-- [x] أدوات حقيقية للطرفية والملفات وGit
-- [x] صندوق bubblewrap المعزول
-- [x] ذاكرة الملاحظات وإدارة السياق
-- [x] معالج الإعداد الأول والردود المتدفقة
-- [x] واجهة TUI كاملة مع نافذة الموافقة
-- [x] عرض العربية من اليمين لليسار
-- [x] الجلسات المحفوظة والـ handoff
-- [ ] أوامر `/sessions` و`/notes` و`/memory` و`/setup`
-- [ ] التغليف (`pipx install`)
-- [ ] المهارات (Skills)
-- [ ] الموصلات (GitHub، المتصفح)
-- [ ] الاختبار على المستويات الثلاثة للنماذج
-- [ ] أول إصدار رسمي
-
----
-
-## ✦ المساهمة
-
-الأفكار وتقارير الأخطاء مرحّب بها. افتح [issue](https://github.com/eh7r/OPEN-CLI-AGENT/issues). ستُفتح طلبات الدمج (Pull Requests) عندما يخرج المشروع من مرحلة التطوير.
-
----
-
-</div>
-
-<div align="center">
-
-بناء [**Yazeed**](https://github.com/eh7r) · [Yazeed Labs](https://www.youtube.com/@YazeedLabs)
-
-<sub>OPEN CLI AGENT · محلي · خاص · لك</sub>
-
-</div>
