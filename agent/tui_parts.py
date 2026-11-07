@@ -304,6 +304,8 @@ COMMANDS = box_lines([
     ("/new", "start a new session"),
     ("/context", "context usage"),
     ("/model", "model and device fit"),
+    ("/notes", "show saved notes"),
+    ("/sessions", "list saved sessions"),
     ("/exit", "quit"),
 ])
 KEYS = box_lines([

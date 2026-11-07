@@ -118,6 +118,21 @@ def show_notes() -> None:
         console.print(f"#{note_id} [{_label(scope)}] {text}", markup=False, highlight=False)
 
 
+def list_notes() -> list:
+    # (id, label, text) for this project notes and the global ones
+    key = project_key()
+    try:
+        with closing(_connect()) as conn:
+            rows = conn.execute(
+                "SELECT id, scope, text FROM notes WHERE scope IN (?, ?) "
+                "ORDER BY (scope = ?) DESC, id DESC",
+                (key, GLOBAL, key),
+            ).fetchall()
+    except (sqlite3.Error, OSError):
+        return []
+    return [(note_id, _label(scope), text) for note_id, scope, text in rows]
+
+
 class RememberArgs(BaseModel):
     text: str = Field(description="A short fact worth keeping (max 200 characters). Never include secrets.")
     scope: Literal["project", "global"] = Field(
