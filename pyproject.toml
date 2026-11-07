@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "open-cli-agent"
+version = "0.1.0"
+description = "A local AI agent for your terminal, powered by Ollama, with a permission layer and sandbox."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "ollama",
+    "rich",
+    "psutil",
+    "pydantic",
+    "arabic-reshaper",
+    "python-bidi",
+    "textual",
+]
+
+[project.scripts]
+openagent = "agent.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["agent*"]
