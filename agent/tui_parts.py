@@ -306,6 +306,7 @@ COMMANDS = box_lines([
     ("/model", "model and device fit"),
     ("/notes", "show saved notes"),
     ("/sessions", "list saved sessions"),
+    ("/setup", "settings and how to change them"),
     ("/exit", "quit"),
 ])
 KEYS = box_lines([
