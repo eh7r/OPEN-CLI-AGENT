@@ -66,7 +66,7 @@ def _handoff(session, journal) -> None:
 def _bye(session) -> None:
     if session:
         console.print(f"[dim]Session[/dim]  {escape(session['title'])}")
-        console.print(f"[dim]Continue[/dim] agent -s {session['id']}")
+        console.print(f"[dim]Continue[/dim] openagent -s {session['id']}")
 
 
 def _find_session(args: list):
@@ -78,7 +78,7 @@ def _find_session(args: list):
             console.print("[yellow]No saved sessions yet.[/yellow]")
         return found
     if len(args) < 2:
-        console.print("[yellow]Usage: agent -s <session id>[/yellow]")
+        console.print("[yellow]Usage: openagent -s <session id>[/yellow]")
         return None
     found = sessions.load(args[1])
     if found is None:

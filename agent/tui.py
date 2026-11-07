@@ -529,7 +529,7 @@ def exit_screen(title, session_id=None):
     print()
     print(f"  \033[2mSession \033[0m  \033[1m{title}\033[0m")
     if session_id:
-        print(f"  \033[2mContinue \033[0m \033[1magent -s {session_id}\033[0m")
+        print(f"  \033[2mContinue \033[0m \033[1mopenagent -s {session_id}\033[0m")
     print()
 
 
