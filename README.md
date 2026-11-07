@@ -8,7 +8,6 @@ A local AI agent for the terminal. It runs on Ollama, executes commands inside a
 ![Python](https://img.shields.io/badge/python-3.14-3776AB?logo=python&logoColor=white)
 ![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)
 
-**English** · [العربية](README.ar.md)
 
 </div>
 
