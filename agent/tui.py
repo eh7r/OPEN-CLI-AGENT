@@ -307,11 +307,28 @@ class AgentApp(App):
                 self.note(f"{x['id']}  {when}  {x.get('workdir', '')}", G1)
                 self.note("  " + self.rtl_text(x["title"], 2), G2)
             self.note("Continue with: openagent -s <id>", G2)
+        elif cmd == "/setup":
+            names = {v: k for k, v in ORDER.items()}
+            lines = [
+                ("Current settings", G1),
+                (f"  model:    {config.MODEL} · tier: {names[model_tier()]}", G1),
+                (f"  config:   {config.CONFIG_PATH}", G1),
+                (f"  memory:   {config.MEMORY_DB}", G1),
+                ("", G2),
+                ("To change the model tier: quit (ctrl+q), then run", G2),
+                ("  openagent --setup", G1),
+                ("To use a model for one run only:", G2),
+                ("  AGENT_MODEL=<model> openagent", G1),
+                ("  AGENT_TIER=<low|mid|high> openagent", G1),
+                ("Environment variables override the saved setup.", G2),
+            ]
+            for line, color in lines:
+                self.note(line, color)
         else:
             self.note(f"unknown command: {cmd} · /help", G2)
 
     def action_help(self):
-        self.note("/help /clear /new /context /model /notes /sessions /handoff /exit", G1)
+        self.note("/help /clear /new /context /model /notes /sessions /setup /handoff /exit", G1)
 
     def action_clear(self):
         self.chat.remove_children()
