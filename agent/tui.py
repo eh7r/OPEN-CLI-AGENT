@@ -21,7 +21,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Input, Static
 
-from agent import approval, config, context, core, model, rtl, tools
+from agent import approval, config, context, core, model, memory, rtl, tools
 from agent.events import Cancelled
 from agent.tui_approval import APPROVAL_CSS, ApprovalBox
 from agent.logo import RESET, WHITE as ANSI_WHITE
@@ -40,6 +40,7 @@ class AgentApp(App):
     CSS = CSS + APPROVAL_CSS
     BINDINGS = [
         Binding("escape", "interrupt", "Interrupt", show=False),
+        Binding("ctrl+q", "quit", "Quit", show=False, priority=True),
         Binding("f1", "help", "Help", show=False),
         Binding("ctrl+l", "clear", "Clear", show=False),
     ]
@@ -291,14 +292,33 @@ class AgentApp(App):
             names = {v: k for k, v in ORDER.items()}
             self.note(f"{config.MODEL} · model tier: {names[model_tier()]} · "
                       f"this device: {config.detect_tier()}", G1)
+        elif cmd == "/notes":
+            rows = memory.list_notes()
+            if not rows:
+                return self.note("No saved notes.", G2)
+            for note_id, label, text in rows:
+                self.note(f"#{note_id} [{label}] {text}", G1)
+        elif cmd == "/sessions":
+            items = [x for x in sessions.list_all() if x.get("title")][:10]
+            if not items:
+                return self.note("No saved sessions.", G2)
+            for x in items:
+                when = str(x.get("updated", ""))[:16].replace("T", " ")
+                self.note(f"{x['id']}  {when}  {x.get('workdir', '')}", G1)
+                self.note("  " + self.rtl_text(x["title"], 2), G2)
+            self.note("Continue with: openagent -s <id>", G2)
         else:
             self.note(f"unknown command: {cmd} · /help", G2)
 
     def action_help(self):
-        self.note("/help /clear /new /context /model /handoff /exit", G1)
+        self.note("/help /clear /new /context /model /notes /sessions /handoff /exit", G1)
 
     def action_clear(self):
         self.chat.remove_children()
+
+    def action_quit(self):
+        self.action_interrupt()
+        self.exit()
 
     def action_interrupt(self):
         if self.working:

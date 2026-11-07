@@ -87,6 +87,8 @@ Slash commands inside a session:
 | `/clear` | Clear the screen |
 | `/context` | Show context usage |
 | `/model` | Show model details |
+| `/sessions` | List recent saved sessions |
+| `/notes` | Show saved notes |
 | `/handoff` | Copy a continuation summary to the clipboard |
 | `/exit` | Save the session and quit |
 
@@ -206,7 +208,7 @@ Done:
 
 Planned:
 
-- `/sessions`, `/notes`, `/memory`, and `/setup` commands
+- `/memory` and `/setup` commands
 - Skills
 - Connectors for GitHub and the browser
 - Testing across all three model tiers
