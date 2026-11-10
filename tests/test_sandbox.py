@@ -207,6 +207,97 @@ def test_no_git_dir_no_extra_mount(unit):
     assert not any(a.endswith("/.git") for a in argv)
 
 
+def test_git_file_read_only(unit):
+    """A gitfile (worktree/submodule pointer) must not be repointable from the sandbox (S1)."""
+    (unit / ".git").write_text("gitdir: /somewhere/else\n")
+    argv = sandbox.build_argv("ls")
+    wd = str(unit.resolve())
+    git = os.path.join(wd, ".git")
+    assert has(argv, "--ro-bind", git, git)
+    assert index_of(argv, "--ro-bind", git, git) > index_of(argv, "--bind", wd, wd)
+
+
+# ---------- build_git_argv (git runs inside the sandbox: S1/S6) ----------
+
+GIT_TAIL = ["git", "--no-pager", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"]
+
+
+@pytest.fixture
+def git_unit(monkeypatch, unit):
+    (unit / ".git").mkdir()
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+    return unit
+
+
+def test_git_argv_runs_git_without_shell_with_hardening(git_unit):
+    argv = sandbox.build_git_argv(str(git_unit), ["status", "--short"])
+    assert argv[0] == "bwrap"
+    assert argv[argv.index("--") + 1:] == GIT_TAIL + ["status", "--short"]
+
+
+def test_git_argv_read_only_git_dir_by_default(git_unit):
+    argv = sandbox.build_git_argv(str(git_unit), ["status"])
+    wd = str(git_unit.resolve())
+    git = os.path.join(wd, ".git")
+    assert has(argv, "--bind", wd, wd)
+    assert index_of(argv, "--ro-bind", git, git) > index_of(argv, "--bind", wd, wd)
+
+
+def test_git_argv_write_leaves_git_dir_writable(git_unit):
+    argv = sandbox.build_git_argv(str(git_unit), ["commit"], write=True)
+    git = os.path.join(str(git_unit.resolve()), ".git")
+    assert not has(argv, "--ro-bind", git, git)
+
+
+def test_git_argv_env_cleared_and_pinned(git_unit):
+    argv = sandbox.build_git_argv(str(git_unit), ["status"])
+    wd = str(git_unit.resolve())
+    env = setenv_pairs(argv)
+    assert argv.index("--clearenv") < argv.index("--setenv")
+    assert env["HOME"] == "/tmp"
+    assert env["GIT_DIR"] == os.path.join(wd, ".git")
+    assert env["GIT_WORK_TREE"] == wd
+    assert env["GIT_CEILING_DIRECTORIES"] == wd
+    assert env["GIT_TERMINAL_PROMPT"] == "0"
+
+
+def test_git_argv_network_always_closed(monkeypatch, git_unit):
+    monkeypatch.setattr(sandbox, "SANDBOX_NET", True)
+    argv = sandbox.build_git_argv(str(git_unit), ["status"], write=True)
+    assert "--unshare-all" in argv
+    assert "--share-net" not in argv
+
+
+def test_git_argv_hides_env_file(git_unit):
+    (git_unit / ".env").write_text("SECRET=1")
+    argv = sandbox.build_git_argv(str(git_unit), ["status"])
+    assert has(argv, "--ro-bind", "/dev/null", os.path.join(str(git_unit.resolve()), ".env"))
+
+
+def test_git_argv_mounts_global_config_read_only(monkeypatch, git_unit, tmp_path):
+    cfg = tmp_path / "gitconfig"
+    cfg.write_text("[user]\n\tname = Me\n")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(cfg))
+    argv = sandbox.build_git_argv(str(git_unit), ["commit"], write=True)
+    assert has(argv, "--ro-bind", str(cfg), "/tmp/.gitconfig")
+
+
+def test_git_argv_no_global_config(git_unit):
+    argv = sandbox.build_git_argv(str(git_unit), ["status"])
+    assert "/tmp/.gitconfig" not in argv
+
+
+def test_git_argv_sandbox_off_is_plain_git(monkeypatch, git_unit):
+    monkeypatch.setattr(sandbox, "SANDBOX", False)
+    assert sandbox.build_git_argv(str(git_unit), ["status"]) == GIT_TAIL + ["status"]
+
+
+def test_git_argv_missing_bwrap_raises(monkeypatch, git_unit):
+    monkeypatch.setattr(sandbox.shutil, "which", lambda name: None)
+    with pytest.raises(sandbox.SandboxUnavailable):
+        sandbox.build_git_argv(str(git_unit), ["status"])
+
+
 def test_env_file_hidden(unit):
     (unit / ".env").write_text("SECRET=1")
     argv = sandbox.build_argv("ls")
@@ -269,6 +360,13 @@ def test_real_git_is_read_only(real):
     assert sh("touch .git/newfile").returncode != 0
     assert (git / "HEAD").read_text() == "ref: main\n"
     assert not (git / "newfile").exists()
+
+
+def test_real_git_file_cannot_be_rewritten(real):
+    (real / ".git").write_text("gitdir: /somewhere/else\n")
+    assert sh("echo 'gitdir: ./evil' > .git").returncode != 0
+    assert sh("rm -f .git").returncode != 0
+    assert (real / ".git").read_text() == "gitdir: /somewhere/else\n"
 
 
 def test_real_env_file_is_hidden(real):

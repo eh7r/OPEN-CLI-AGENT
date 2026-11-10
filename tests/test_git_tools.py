@@ -1,5 +1,7 @@
 """Tests for agent/git_tools.py on a temporary git repo (never your real project).
-confirm is faked; _resolve is replaced by a simple resolver (file_tools has its own tests)."""
+confirm is faked; _resolve is replaced by a simple resolver (file_tools has its own tests).
+Every repo test runs twice: git on the host (sandbox off) and git inside real bwrap."""
+import functools
 import shutil
 import subprocess
 from types import SimpleNamespace
@@ -7,7 +9,7 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 
-from agent import approval, git_tools, shell, tools
+from agent import approval, git_tools, sandbox, shell, tools
 
 
 # ---------- helpers ----------
@@ -34,20 +36,36 @@ class Approver:
 DECLINED = "Error: the user declined this action. It was NOT performed."
 
 
+def hook(path, marker):
+    """Write an executable shell script that creates `marker` when it runs."""
+    path.write_text(f"#!/bin/sh\ntouch '{marker}'\n")
+    path.chmod(0o755)
+
+
+@functools.cache
+def bwrap_works():
+    if shutil.which("bwrap") is None:
+        return False
+    probe = subprocess.run(
+        ["bwrap", "--unshare-all", "--ro-bind", "/usr", "/usr", "--symlink", "usr/lib", "/lib",
+         "--symlink", "usr/lib64", "/lib64", "--", "/usr/bin/true"],
+        capture_output=True,
+    )
+    return probe.returncode == 0
+
+
 # ---------- fixtures ----------
 
-@pytest.fixture
-def repo(monkeypatch, tmp_path):
+@pytest.fixture(params=["host", "bwrap"])
+def repo(request, monkeypatch, tmp_path):
     if shutil.which("git") is None:
         pytest.skip("git is not installed")
+    if request.param == "bwrap" and not bwrap_works():
+        pytest.skip("bwrap cannot run here")
     env = {
         "GIT_CONFIG_GLOBAL": "/dev/null",
         "GIT_CONFIG_NOSYSTEM": "1",
         "GIT_CEILING_DIRECTORIES": str(tmp_path),
-        "GIT_AUTHOR_NAME": "Test",
-        "GIT_AUTHOR_EMAIL": "test@example.com",
-        "GIT_COMMITTER_NAME": "Test",
-        "GIT_COMMITTER_EMAIL": "test@example.com",
     }
     for key, value in env.items():
         monkeypatch.setenv(key, value)
@@ -56,13 +74,19 @@ def repo(monkeypatch, tmp_path):
     root.mkdir()
     g(root, "init", "-q")
     g(root, "symbolic-ref", "HEAD", "refs/heads/main")
+    # identity in the repo config: the sandbox clears the environment
+    g(root, "config", "user.name", "Test")
+    g(root, "config", "user.email", "test@example.com")
     (root / "a.txt").write_text("one\n")
     (root / "b.txt").write_text("bee\n")
     g(root, "add", "a.txt", "b.txt")
     g(root, "commit", "-q", "-m", "initial")
 
     monkeypatch.setattr(git_tools, "WORKDIR", str(root))
+    monkeypatch.setattr(git_tools, "GIT_REPO_AT_LAUNCH", True)
     monkeypatch.setattr(git_tools, "_resolve", lambda p: root / p)
+    monkeypatch.setattr(sandbox, "SANDBOX", request.param == "bwrap")
+    monkeypatch.setattr(sandbox, "SANDBOX_NET", False)
     return root
 
 
@@ -85,7 +109,18 @@ def test_git_error_has_nonzero_code(repo):
     assert "not-a-command" in output
 
 
-def test_git_call_arguments(monkeypatch):
+@pytest.fixture
+def fake_repo(monkeypatch, tmp_path):
+    """An empty .git folder present at launch, sandbox off: for tests that fake subprocess.run."""
+    (tmp_path / ".git").mkdir()
+    monkeypatch.setattr(git_tools, "WORKDIR", str(tmp_path))
+    monkeypatch.setattr(git_tools, "GIT_REPO_AT_LAUNCH", True)
+    monkeypatch.setattr(sandbox, "SANDBOX", False)
+    return tmp_path
+
+
+def test_git_call_arguments(monkeypatch, fake_repo):
+    tmp_path = fake_repo
     captured = {}
 
     def fake_run(cmd, **kw):
@@ -94,16 +129,24 @@ def test_git_call_arguments(monkeypatch):
 
     monkeypatch.setattr(git_tools.subprocess, "run", fake_run)
     assert git_tools._git("status") == (0, "oe")
-    assert captured["cmd"] == ["git", "--no-pager", "status"]
+    assert captured["cmd"] == [
+        "git", "--no-pager",
+        "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
+        "status",
+    ]
     kw = captured["kw"]
-    assert kw["cwd"] == git_tools.WORKDIR
+    assert kw["cwd"] == str(tmp_path)
     assert kw["stdin"] == subprocess.DEVNULL
     assert kw["timeout"] == git_tools.GIT_TIMEOUT
-    assert kw["env"]["GIT_TERMINAL_PROMPT"] == "0"
+    env = kw["env"]
+    assert env["GIT_TERMINAL_PROMPT"] == "0"
+    assert env["GIT_DIR"] == str(tmp_path / ".git")
+    assert env["GIT_WORK_TREE"] == str(tmp_path)
+    assert env["GIT_CEILING_DIRECTORIES"] == str(tmp_path)
     assert "shell" not in kw  # no shell: arguments are never interpreted
 
 
-def test_git_not_installed(monkeypatch):
+def test_git_not_installed(monkeypatch, fake_repo):
     def boom(*a, **kw):
         raise FileNotFoundError()
 
@@ -111,7 +154,15 @@ def test_git_not_installed(monkeypatch):
     assert git_tools._git("status") == (1, "git is not installed.")
 
 
-def test_git_timeout(monkeypatch):
+def test_git_missing_bwrap_is_reported(monkeypatch, fake_repo):
+    monkeypatch.setattr(sandbox, "SANDBOX", True)
+    monkeypatch.setattr(sandbox.shutil, "which", lambda name: None)
+    code, output = git_tools._git("status")
+    assert code == 1
+    assert "bubblewrap (bwrap) is not installed" in output
+
+
+def test_git_timeout(monkeypatch, fake_repo):
     def boom(*a, **kw):
         raise subprocess.TimeoutExpired("git", 30)
 
@@ -153,7 +204,7 @@ def test_status_outside_repo(monkeypatch, tmp_path, repo):
     plain.mkdir()
     monkeypatch.setattr(git_tools, "WORKDIR", str(plain))
     result = git_tools.git_status(git_tools.StatusArgs())
-    assert result.startswith("Error (git exit 128)")
+    assert result.startswith("Error: git tools are off")
 
 
 # ---------- git_diff ----------
@@ -279,6 +330,116 @@ def test_commit_add_failure_is_reported(repo, approve):
     result = git_tools.git_commit(git_tools.CommitArgs(message="x", files=["missing.txt"]))
     assert result.startswith("Error (git exit 128)")
     assert g(repo, "rev-list", "--count", "HEAD") == "1"
+
+
+# ---------- S1 / S6 regressions: git never runs repo-controlled code on the host ----------
+
+def test_repo_planted_by_a_sandboxed_command_never_runs_on_host(monkeypatch, tmp_path):
+    """S1 PoC: no repo at launch; a terminal command creates .git with core.fsmonitor."""
+    if shutil.which("git") is None or not bwrap_works():
+        pytest.skip("needs git and a working bwrap")
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    marker = tmp_path / "PWNED"  # outside the workdir: only the host can write it
+    for mod in (sandbox, shell, git_tools):
+        monkeypatch.setattr(mod, "WORKDIR", str(proj))
+    monkeypatch.setattr(sandbox, "SANDBOX", True)
+    monkeypatch.setattr(sandbox, "SANDBOX_NET", False)
+    monkeypatch.setattr(git_tools, "GIT_REPO_AT_LAUNCH", False)
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
+
+    planted = shell.run_command(
+        "git init -q . && printf '#!/bin/sh\\ntouch %s\\n' > .git/x && chmod +x .git/x "
+        "&& git config core.fsmonitor \"$PWD/.git/x\"" % marker
+    )
+    assert planted.startswith("exit code: 0"), planted
+
+    status = git_tools.git_status(git_tools.StatusArgs())
+    diff = git_tools.git_diff(git_tools.DiffArgs())
+    assert not marker.exists()
+    assert "git tools are off" in status
+    assert "git tools are off" in diff
+
+
+@pytest.mark.parametrize(
+    "at_launch, now",
+    [
+        (False, "none"),      # no repo at start-up
+        (False, "dir"),       # .git planted after start-up
+        (True, "none"),       # .git removed since start-up
+        (True, "gitfile"),    # replaced by a gitfile
+        (True, "symlink"),    # replaced by a symlink
+    ],
+)
+def test_git_tools_refuse_without_a_real_repo(monkeypatch, tmp_path, approve, at_launch, now):
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    if now == "dir":
+        (proj / ".git").mkdir()
+    elif now == "gitfile":
+        (proj / ".git").write_text("gitdir: /elsewhere\n")
+    elif now == "symlink":
+        (tmp_path / "other").mkdir()
+        (proj / ".git").symlink_to(tmp_path / "other", target_is_directory=True)
+    monkeypatch.setattr(git_tools, "WORKDIR", str(proj))
+    monkeypatch.setattr(git_tools, "GIT_REPO_AT_LAUNCH", at_launch)
+    monkeypatch.setattr(git_tools, "_resolve", lambda p: proj / p)
+    calls = []
+    monkeypatch.setattr(git_tools.subprocess, "run", lambda *a, **kw: calls.append(a))
+
+    for result in (
+        git_tools.git_status(git_tools.StatusArgs()),
+        git_tools.git_diff(git_tools.DiffArgs()),
+        git_tools.git_commit(git_tools.CommitArgs(message="m", files=["a.txt"])),
+    ):
+        assert result.startswith("Error:")
+        assert "git tools are off" in result
+    assert calls == []  # git never started
+    assert approve.asked == []  # nothing to approve
+
+
+def test_fsmonitor_in_repo_config_never_runs(repo, approve, tmp_path):
+    marker = tmp_path / "FSMONITOR_RAN"
+    hook(repo / ".git" / "fsmon", marker)
+    g(repo, "config", "core.fsmonitor", str(repo / ".git" / "fsmon"))
+    (repo / "a.txt").write_text("changed\n")
+
+    git_tools.git_status(git_tools.StatusArgs())
+    git_tools.git_diff(git_tools.DiffArgs())
+    git_tools.git_commit(git_tools.CommitArgs(message="c", files=["a.txt"]))
+    assert not marker.exists()
+
+
+def test_commit_never_runs_repo_hooks(repo, approve):
+    """S6: pre-commit / commit-msg / post-commit from .git/hooks are ignored."""
+    for name in ("pre-commit", "commit-msg", "post-commit"):
+        hook(repo / ".git" / "hooks" / name, repo / f"{name}.ran")
+    (repo / "a.txt").write_text("changed\n")
+
+    result = git_tools.git_commit(git_tools.CommitArgs(message="c", files=["a.txt"]))
+    assert not result.startswith("Error"), result
+    assert g(repo, "log", "-1", "--format=%s") == "c"
+    assert not list(repo.glob("*.ran"))
+
+
+def test_hooks_path_in_repo_config_is_overridden(repo, approve):
+    hooks = repo / "myhooks"
+    hooks.mkdir()
+    hook(hooks / "pre-commit", repo / "hookspath.ran")
+    g(repo, "config", "core.hooksPath", str(hooks))
+    (repo / "a.txt").write_text("changed\n")
+
+    git_tools.git_commit(git_tools.CommitArgs(message="c", files=["a.txt"]))
+    assert not (repo / "hookspath.ran").exists()
+
+
+def test_status_and_diff_cannot_write_git_dir_in_sandbox(repo, monkeypatch):
+    """Read-only tools mount .git read-only inside bwrap."""
+    if not sandbox.SANDBOX:
+        pytest.skip("bwrap variant only")
+    code, output = git_tools._git("config", "core.evil", "x")
+    assert code != 0
+    assert "evil" not in (repo / ".git" / "config").read_text()
 
 
 # ---------- registry ----------

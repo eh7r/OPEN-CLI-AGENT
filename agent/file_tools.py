@@ -22,6 +22,12 @@ def _resolve(path: str) -> Path:
     return target
 
 
+def _in_git_dir(target: Path) -> bool:
+    """True if the resolved path is .git or inside any .git folder (hooks, config)."""
+    rel = target.relative_to(Path(WORKDIR).resolve())
+    return any(part.lower() == ".git" for part in rel.parts)
+
+
 class ReadArgs(BaseModel):
     path: str = Field(description="File path, relative to the working directory")
 
@@ -53,6 +59,8 @@ def read_file(args: ReadArgs) -> str:
 @register("write_file", "Create or overwrite a text file in the working directory", WriteArgs)
 def write_file(args: WriteArgs) -> str:
     target = _resolve(args.path)
+    if _in_git_dir(target):
+        return "Error: writing inside .git is not allowed (hooks and config there can run code)."
     if target.is_dir():
         return f"Error: '{args.path}' is a directory."
     action = "overwrite" if target.exists() else "create"
