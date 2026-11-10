@@ -65,6 +65,10 @@ OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 MAX_STEPS = int(os.getenv("AGENT_MAX_STEPS", "10"))
 
 WORKDIR = os.getenv("AGENT_WORKDIR", os.getcwd())
+# True only if WORKDIR/.git was a real directory (not a symlink or gitfile) at start-up.
+# Git tools trust only a repo that existed before any agent command could create one.
+_launch_git = os.path.join(WORKDIR, ".git")
+GIT_REPO_AT_LAUNCH = os.path.isdir(_launch_git) and not os.path.islink(_launch_git)
 COMMAND_TIMEOUT = int(os.getenv("AGENT_TIMEOUT", "30"))
 MAX_OUTPUT_CHARS = int(os.getenv("AGENT_MAX_OUTPUT", "4000"))
 

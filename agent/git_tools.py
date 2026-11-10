@@ -1,30 +1,53 @@
 import os
 import subprocess
+from pathlib import Path
 
 from pydantic import BaseModel, Field
 
 from agent.approval import confirm
-from agent.config import WORKDIR
+from agent.config import GIT_REPO_AT_LAUNCH, WORKDIR
 from agent.file_tools import _resolve
+from agent.sandbox import SandboxUnavailable, build_git_argv, git_env
 from agent.shell import _truncate
 from agent.tools import register
 
 GIT_TIMEOUT = 30
 
+NO_REPO = (
+    "Error: git tools are off: the working directory had no real .git folder when the agent "
+    "started (missing, a symlink, a gitfile, or removed since). Start the agent from the repository root."
+)
 
-def _git(*args: str) -> tuple[int, str]:
-    """Run git without a shell. Returns (exit code, combined output)."""
-    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+
+def _no_repo() -> str | None:
+    """NO_REPO unless WORKDIR/.git was a real folder at launch and still is one now.
+    A .git created later (e.g. by a sandboxed command) is never trusted."""
+    git = os.path.join(WORKDIR, ".git")
+    if GIT_REPO_AT_LAUNCH and os.path.isdir(git) and not os.path.islink(git):
+        return None
+    return NO_REPO
+
+
+def _git(*args: str, write: bool = False) -> tuple[int, str]:
+    """Run git without a shell, inside bwrap unless the sandbox is off.
+    Only `write=True` (add/commit) can change .git. Returns (exit code, combined output)."""
+    if refusal := _no_repo():
+        return 1, refusal
+    wd = str(Path(WORKDIR).resolve())
+    try:
+        argv = build_git_argv(wd, list(args), write=write)
+    except SandboxUnavailable as e:
+        return 1, str(e)
     try:
         proc = subprocess.run(
-            ["git", "--no-pager", *args],
-            cwd=WORKDIR,
+            argv,
+            cwd=wd,
             stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             errors="replace",
             timeout=GIT_TIMEOUT,
-            env=env,
+            env={**os.environ, **git_env(wd)},
         )
     except FileNotFoundError:
         return 1, "git is not installed."
@@ -56,11 +79,15 @@ class StatusArgs(BaseModel):
 
 @register("git_status", "Show changed files in the git repository", StatusArgs)
 def git_status(args: StatusArgs) -> str:
+    if refusal := _no_repo():
+        return refusal
     return _format(*_git("status", "--short", "--branch"))
 
 
 @register("git_diff", "Show the changes in the git repository", DiffArgs)
 def git_diff(args: DiffArgs) -> str:
+    if refusal := _no_repo():
+        return refusal
     cmd = ["diff"]
     if args.staged:
         cmd.append("--staged")
@@ -71,6 +98,8 @@ def git_diff(args: DiffArgs) -> str:
 
 @register("git_commit", "Commit the given files with a message (asks the user first)", CommitArgs)
 def git_commit(args: CommitArgs) -> str:
+    if refusal := _no_repo():
+        return refusal
     message = args.message.strip()
     if not message or len(message) > 200:
         return "Error: the commit message must be 1 to 200 characters."
@@ -83,10 +112,10 @@ def git_commit(args: CommitArgs) -> str:
     if not allowed:
         return reply
 
-    code, output = _git("add", "--", *paths)
+    code, output = _git("add", "--", *paths, write=True)
     if code != 0:
         return _format(code, output)
-    code, output = _git("commit", "-m", message, "--", *paths)
+    code, output = _git("commit", "-m", message, "--", *paths, write=True)
     if code != 0:
         return f"Error: the commit failed: {_truncate(output)} The files may be staged (check with git_status). Do not repeat this commit; tell the user."
     return _format(code, output)

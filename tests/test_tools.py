@@ -136,6 +136,42 @@ def test_sensitive_paths_are_refused(workdir, path):
     assert not (workdir / path).exists()
 
 
+# ---------- S2: no writes into .git (hooks/config would run code) ----------
+
+@pytest.mark.parametrize(
+    "path", [".git/config", ".git/hooks/pre-commit", ".git", "sub/.git/config", ".GIT/config", "./.git/x"]
+)
+def test_write_into_git_dir_is_refused(workdir, monkeypatch, path):
+    (workdir / ".git").mkdir()
+    asked = []
+    monkeypatch.setattr(file_tools, "confirm", lambda d: asked.append(d) or (True, ""))
+    result = run("write_file", path=path, content="x")
+    assert result.startswith("Error:")
+    assert "not allowed" in result
+    assert asked == []
+    assert list((workdir / ".git").iterdir()) == []
+    assert not (workdir / "sub").exists()
+    assert not (workdir / ".GIT").exists()
+
+
+def test_write_through_symlink_into_git_dir_is_refused(workdir):
+    (workdir / ".git").mkdir()
+    (workdir / "g").symlink_to(workdir / ".git", target_is_directory=True)
+    assert "not allowed" in run("write_file", path="g/config", content="x")
+    assert not (workdir / ".git" / "config").exists()
+
+
+def test_write_similar_names_still_allowed(workdir):
+    for path in (".gitignore", ".github/workflows/ci.yml", "my.git/x"):
+        assert run("write_file", path=path, content="x").startswith("OK"), path
+
+
+def test_read_inside_git_dir_still_allowed(workdir):
+    (workdir / ".git").mkdir()
+    (workdir / ".git" / "HEAD").write_text("ref: refs/heads/main\n")
+    assert run("read_file", path=".git/HEAD") == "ref: refs/heads/main\n"
+
+
 def test_long_files_are_truncated(workdir):
     (workdir / "big.txt").write_text("a" * 10000)
     result = run("read_file", path="big.txt")

@@ -100,6 +100,26 @@ def test_config_path_uses_xdg_config_home(monkeypatch, tmp_path):
     assert cfg.CONFIG_PATH == str(tmp_path / "ai-agent" / "config.json")
 
 
+# ---------- GIT_REPO_AT_LAUNCH (S1) ----------
+
+def test_git_repo_at_launch_true_for_real_dir(monkeypatch, tmp_path):
+    proj = tmp_path / "proj"
+    (proj / ".git").mkdir(parents=True)
+    assert load(monkeypatch, tmp_path, AGENT_WORKDIR=str(proj)).GIT_REPO_AT_LAUNCH is True
+
+
+@pytest.mark.parametrize("kind", ["missing", "gitfile", "symlink"])
+def test_git_repo_at_launch_false(monkeypatch, tmp_path, kind):
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    if kind == "gitfile":
+        (proj / ".git").write_text("gitdir: /elsewhere\n")
+    elif kind == "symlink":
+        (tmp_path / "real-git").mkdir()
+        (proj / ".git").symlink_to(tmp_path / "real-git", target_is_directory=True)
+    assert load(monkeypatch, tmp_path, AGENT_WORKDIR=str(proj)).GIT_REPO_AT_LAUNCH is False
+
+
 # ---------- needs_setup ----------
 
 def test_needs_setup_on_first_run(monkeypatch, tmp_path):
