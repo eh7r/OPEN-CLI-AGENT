@@ -161,7 +161,7 @@ def save(session_id: str, text: str) -> str:
             os.unlink(tmp)
         except OSError:
             pass
-        raiseo
+        raise
 
 
 def generate(session_id, workdir, tasks, ask=None, cancel=None, use_model=True):

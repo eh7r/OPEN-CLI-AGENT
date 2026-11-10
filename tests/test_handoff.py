@@ -125,3 +125,16 @@ def test_save_refuses_a_bad_id(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
     with pytest.raises(ValueError):
         handoff.save("../x", "text")
+
+
+def test_save_failure_reraises_and_cleans_up(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+
+    def boom(src, dst):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(os, "replace", boom)
+    with pytest.raises(OSError, match="disk full"):
+        handoff.save("deadbeef", "text")
+    folder = tmp_path / "ai-agent" / "handoffs"
+    assert os.listdir(folder) == []
