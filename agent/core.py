@@ -71,8 +71,9 @@ def run(task: str, messages: list | None = None, out=None) -> str:
             out.notice("Stopped: the model kept repeating blocked calls.", "error")
             return STOPPED
 
-        # After a refusal the model gets no tools: it can only explain.
-        schemas = None if tracker.declined else tools.schemas()
+        # Tools are always sent so the prompt prefix (and Ollama's cache) stays the same;
+        # after a decline any tool call is skipped in code, never executed.
+        schemas = tools.schemas()
         fit = context.compact(messages, schemas)
         if fit == context.TOO_BIG:
             out.notice("Stopped: this does not fit in the context window. Raise AGENT_CONTEXT or shorten the task.", "error")
@@ -89,6 +90,11 @@ def run(task: str, messages: list | None = None, out=None) -> str:
             out.reply_end()
 
         if tracker.declined or not reply.tool_calls:
+            for call in reply.tool_calls or []:  # only after a decline: answer each call, run none
+                name, args = call.function.name, dict(call.function.arguments)
+                out.tool_start(name, args)
+                out.tool_end(name, args, "skipped", SKIPPED)
+                messages.append({"role": "tool", "tool_name": name, "content": SKIPPED})
             finish(reply, last_result, tracker.declined, out)
             return DONE
 

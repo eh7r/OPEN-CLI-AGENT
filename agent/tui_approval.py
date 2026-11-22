@@ -18,16 +18,22 @@ ApprovalBox {{ height: auto; border: solid {W}; background: {BG}; padding: 1 2; 
 """
 
 
+# Keys typed before the box is armed are ignored, so typeahead (a `y` typed while the
+# model was still streaming) can never approve something the user has not seen yet.
+ARM_DELAY = 0.4
+
+
 class ApprovalBox(Vertical):
     """y = allow, n / esc = deny, arrows move, enter presses the focused button.
-    Focus starts on Deny, so an accidental Enter never allows anything."""
+    Focus starts on Deny, so an accidental Enter never allows anything.
+    For the first ARM_DELAY seconds after mount every key is ignored."""
 
     BINDINGS = [
         Binding("y", "answer(True)", show=False),
         Binding("n", "answer(False)", show=False),
         Binding("escape", "answer(False)", show=False),
-        Binding("left,up", "app.focus_previous", show=False),
-        Binding("right,down", "app.focus_next", show=False),
+        Binding("left,up", "move(-1)", show=False),
+        Binding("right,down", "move(1)", show=False),
     ]
 
     class Answered(Message):
@@ -39,6 +45,7 @@ class ApprovalBox(Vertical):
         super().__init__()
         self.description = description
         self.workdir = workdir
+        self.armed = False
 
     def compose(self):
         body = Text()
@@ -63,10 +70,26 @@ class ApprovalBox(Vertical):
 
     def on_mount(self):
         self.query_one("#deny", Button).focus()
+        self.set_timer(ARM_DELAY, self._arm)
+
+    def _arm(self):
+        self.armed = True
 
     def on_button_pressed(self, event: Button.Pressed):
         event.stop()
+        if not self.armed:
+            return
         self.post_message(self.Answered(event.button.id == "allow"))
 
     def action_answer(self, ok: bool):
+        if not self.armed:
+            return
         self.post_message(self.Answered(ok))
+
+    def action_move(self, step: int):
+        if not self.armed:
+            return
+        if step > 0:
+            self.app.action_focus_next()
+        else:
+            self.app.action_focus_previous()

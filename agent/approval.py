@@ -5,7 +5,7 @@ from rich.markup import escape
 
 console = Console()
 
-DECLINED = "Error: the user declined this action. It was NOT performed, so there is no result from it. Do not retry it or try another way; tell the user it was declined."
+DECLINED = "Error: the user declined this action. It was NOT performed. Do not retry it or use another tool to get around it; explain to the user what was not done."
 
 _handler = None
 

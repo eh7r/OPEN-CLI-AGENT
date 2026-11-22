@@ -338,6 +338,11 @@ class AgentApp(App):
         self.exit()
 
     def action_interrupt(self):
+        if self.pending is not None:
+            # Quitting or interrupting with a question open counts as "no": the worker
+            # thread is blocked waiting for the answer and would never return otherwise.
+            self._close_approval_box()
+            self.resolve_approval(False)
         if self.working:
             self.cancel_flag.set()
             self.set_agent_state("stopping")
@@ -361,13 +366,16 @@ class AgentApp(App):
         self.query_one("#inputwrap").mount(self.approval_box, before="#box")
         self.chat.scroll_end(animate=False)
 
-    def on_approval_box_answered(self, message):
-        message.stop()
+    def _close_approval_box(self):
         if getattr(self, "approval_box", None) is not None:
             self.approval_box.remove()
             self.approval_box = None
         self.query_one(Input).disabled = False
         self.query_one(Input).focus()
+
+    def on_approval_box_answered(self, message):
+        message.stop()
+        self._close_approval_box()
         self.resolve_approval(message.ok)
 
     def resolve_approval(self, ok):

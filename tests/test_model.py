@@ -1,4 +1,5 @@
 """Tests for agent/model.py: streaming, on_token, tool_calls, ModelError. No real Ollama."""
+import threading
 from types import SimpleNamespace
 
 import ollama
@@ -191,6 +192,102 @@ def test_connection_drops_mid_stream(fake):
 
 def test_model_error_is_exception():
     assert issubclass(model.ModelError, Exception)
+
+
+# ---------- stopping the stream (B2/P4) ----------
+
+class FakeStream:
+    """Iterator with close(). Items are chunks, or callables run inside __next__
+    (to block on an Event or to raise). Records which threads read and closed it."""
+
+    def __init__(self, items):
+        self.items = list(items)
+        self.yielded = 0
+        self.next_threads = set()
+        self.close_thread = None
+        self.closed = threading.Event()
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        self.next_threads.add(threading.current_thread())
+        if not self.items:
+            raise StopIteration
+        item = self.items.pop(0)
+        if callable(item):
+            item = item()
+        self.yielded += 1
+        return item
+
+    def close(self):
+        self.close_thread = threading.current_thread()
+        self.closed.set()
+
+
+class Boom(Exception):
+    pass
+
+
+def _blocked_until(release, value):
+    def wait():
+        assert release.wait(5), "test never released the stream"
+        return value
+    return wait
+
+
+def test_cancel_mid_stream_closes_stream_from_reader_thread(fake):
+    release = threading.Event()
+    stream = FakeStream([chunk("a"), _blocked_until(release, chunk("b")), chunk("c"), chunk("d")])
+    fake(stream)
+    seen = []
+
+    def cancel():
+        if seen:
+            raise Boom()
+
+    with pytest.raises(Boom):
+        model.ask(MSGS, on_token=seen.append, cancel=cancel)
+    release.set()  # ask() has returned, so stop is already set
+    assert stream.closed.wait(5)
+    assert stream.close_thread is not threading.main_thread()
+    assert stream.next_threads == {stream.close_thread}
+    assert stream.yielded == 2  # c and d never read
+
+
+def test_normal_finish_closes_stream(fake):
+    stream = FakeStream([chunk("ok")])
+    fake(stream)
+    assert model.ask(MSGS).content == "ok"
+    assert stream.closed.wait(5)
+    assert stream.close_thread is not threading.main_thread()
+
+
+def test_exception_in_stream_still_closes_it(fake):
+    def lost():
+        raise ConnectionError("lost")
+
+    stream = FakeStream([chunk("part"), lost])
+    fake(stream)
+    with pytest.raises(model.ModelError):
+        model.ask(MSGS)
+    assert stream.closed.wait(5)
+    assert stream.close_thread is not threading.main_thread()
+
+
+def test_main_loop_exception_sets_stop(fake):
+    release = threading.Event()
+    stream = FakeStream([chunk("a"), _blocked_until(release, chunk("b")), chunk("c")])
+    fake(stream)
+
+    def on_token(_):
+        raise RuntimeError("ui broke")
+
+    with pytest.raises(RuntimeError):
+        model.ask(MSGS, on_token=on_token)
+    release.set()
+    assert stream.closed.wait(5)
+    assert stream.yielded == 2
 
 
 _ORIGINAL_CLIENT = model._client

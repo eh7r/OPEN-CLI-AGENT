@@ -253,7 +253,7 @@ def test_timeout_on_mutating_tool_adds_warning(setup):
 
 # ---------- declined / SKIPPED ----------
 
-def test_declined_removes_tools_for_next_step(setup, capsys):
+def test_declined_keeps_tools_for_next_step(setup, capsys):
     fm, ex = setup(
         [reply("", tc("write_file", path="a", content="x")), reply("I did not write it.")],
         results=["Error: the user declined this action"],
@@ -262,7 +262,7 @@ def test_declined_removes_tools_for_next_step(setup, capsys):
     o = out(capsys)
     assert "write_file: declined" in o
     assert fm.calls[0]["tools"] == SCHEMAS
-    assert fm.calls[1]["tools"] is None
+    assert fm.calls[1]["tools"] == SCHEMAS  # same prompt prefix, cache stays warm
     assert len(fm.calls) == 2
     assert "I did not write it." in o
 
@@ -304,6 +304,38 @@ def test_second_call_in_same_reply_is_skipped(setup, capsys):
     assert "write_file: skipped" in o
     tool_msgs = [m for m in fm.calls[1]["messages"] if role(m) == "tool"]
     assert tool_msgs[1]["content"] == core.SKIPPED
+
+
+def test_declined_text_has_guidance_and_classify_prefix():
+    from agent import approval
+    assert approval.DECLINED.startswith("Error: the user declined")
+    assert "NOT performed" in approval.DECLINED
+    assert "Do not retry it or use another tool to get around it" in approval.DECLINED
+    assert "explain to the user what was not done" in approval.DECLINED
+    assert evaluate.classify(approval.DECLINED) == evaluate.DECLINED
+
+
+def test_tool_calls_after_decline_get_skipped_results_and_never_run(setup, capsys):
+    fm, ex = setup(
+        [
+            reply("", tc("write_file", path="a", content="x")),
+            reply("", tc("terminal", command="tee a"), tc("write_file", path="b", content="y")),
+        ],
+        results=["Error: the user declined this action"],
+    )
+    messages = core.new_session()
+    assert core.run("write", messages) == core.DONE
+    assert ex.calls == [("write_file", {"path": "a", "content": "x"})]  # only the declined one
+    assert len(fm.calls) == 2
+    tail = messages[-2:]
+    assert [m["role"] for m in tail] == ["tool", "tool"]
+    assert [m["tool_name"] for m in tail] == ["terminal", "write_file"]
+    assert all(m["content"] == core.SKIPPED for m in tail)
+    o = out(capsys)
+    assert "terminal: skipped" in o
+    assert "write_file: skipped" in o
+    # the reply had no text: code explains the decline, no extra model call
+    assert "The action was declined by you and was not performed." in o
 
 
 # ---------- finish ----------
@@ -367,7 +399,7 @@ def test_trimmed_prints_note_and_continues(setup, capsys):
     assert "fine" in o
 
 
-def test_compact_receives_tools_then_none_after_decline(setup):
+def test_compact_receives_tools_before_and_after_decline(setup):
     seen = []
 
     def spy(messages, schemas):
@@ -380,7 +412,7 @@ def test_compact_receives_tools_then_none_after_decline(setup):
         compact=spy,
     )
     core.run("write")
-    assert seen == [SCHEMAS, None]
+    assert seen == [SCHEMAS, SCHEMAS]
 
 
 # ---------- sandbox warning ----------

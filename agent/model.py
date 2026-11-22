@@ -39,9 +39,13 @@ def ask(messages: list, tools: list | None = None, on_token=None, cancel=None, m
     cancel() is called every 0.1s while waiting and may raise to stop waiting."""
     parts, calls = [], []
     q = queue.Queue()
+    stop = threading.Event()
     t0 = time.monotonic()
 
     def reader():
+        # Only this thread touches the stream: closing a generator from another
+        # thread while it is running raises ValueError.
+        stream = None
         try:
             stream = _client.chat(
                 model=MODEL,
@@ -53,36 +57,49 @@ def ask(messages: list, tools: list | None = None, on_token=None, cancel=None, m
                 stream=True,
             )
             for chunk in stream:
+                if stop.is_set():
+                    return
                 q.put(("chunk", chunk))
             q.put(("end", None))
         except BaseException as e:
             q.put(("error", e))
+        finally:
+            close = getattr(stream, "close", None)
+            if close:
+                try:
+                    close()
+                except Exception:
+                    pass
 
     threading.Thread(target=reader, daemon=True).start()
-    while True:
-        try:
-            kind, val = q.get(timeout=0.1)
-        except queue.Empty:
-            if cancel:
-                cancel()
-            continue
-        if kind == "end":
-            break
-        if kind == "error":
-            if isinstance(val, ollama.ResponseError):
-                if val.status_code == 404:
-                    raise ModelError(f"Model not found. Run: ollama pull {MODEL}")
-                raise ModelError(str(val))
-            raise ModelError("Cannot reach Ollama. Is it running?")
-        if getattr(val, 'done', False):
-            _trace(val, len(messages), time.monotonic() - t0)
-        msg = val.message
-        if msg.content:
-            parts.append(msg.content)
-            if on_token:
-                on_token(msg.content)
-        if msg.tool_calls:
-            calls.extend(msg.tool_calls)
+    try:
+        while True:
+            try:
+                kind, val = q.get(timeout=0.1)
+            except queue.Empty:
+                if cancel:
+                    cancel()
+                continue
+            if kind == "end":
+                break
+            if kind == "error":
+                if isinstance(val, ollama.ResponseError):
+                    if val.status_code == 404:
+                        raise ModelError(f"Model not found. Run: ollama pull {MODEL}")
+                    raise ModelError(str(val))
+                raise ModelError("Cannot reach Ollama. Is it running?")
+            if getattr(val, 'done', False):
+                _trace(val, len(messages), time.monotonic() - t0)
+            msg = val.message
+            if msg.content:
+                parts.append(msg.content)
+                if on_token:
+                    on_token(msg.content)
+            if msg.tool_calls:
+                calls.extend(msg.tool_calls)
+    finally:
+        # Tell the reader to stop; it closes the stream itself, so Ollama stops generating.
+        stop.set()
 
     return ollama.Message(role="assistant", content="".join(parts), tool_calls=calls or None)
 
