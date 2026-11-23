@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from agent import handoff
 
 TASKS = [{"task": "fix bug", "outcome": "done", "reply": "fixed", "tools": []}]
+OPEN = [{"task": "fix bug", "outcome": "error", "reply": "", "tools": []}]
 
 
 def _fake_save(store):
@@ -17,9 +18,10 @@ def test_saves_with_model_section(monkeypatch):
     store = {}
     monkeypatch.setattr(handoff, "save", _fake_save(store))
     ask = lambda *a, **k: SimpleNamespace(content="- next")
-    path, text = handoff.generate("abc", "/w", TASKS, ask=ask)
+    path, text = handoff.generate("abc", "/w", OPEN, ask=ask)
     assert path == "/x/abc.md"
     assert "Next steps" in text and "- next" in text
+    assert "Nothing left." not in text
     assert store["abc"] == text
 
 
@@ -40,7 +42,7 @@ def test_model_failure_still_saves_base(monkeypatch):
     def boom(*a, **k):
         raise RuntimeError("down")
 
-    path, text = handoff.generate("abc", "/w", TASKS, ask=boom)
+    path, text = handoff.generate("abc", "/w", OPEN, ask=boom)
     assert path and "fix bug" in text and "Next steps" not in text
 
 
@@ -60,3 +62,29 @@ def test_unsaved_session_is_not_written(monkeypatch):
     monkeypatch.setattr(handoff, "save", never)
     path, text = handoff.generate(None, "/w", TASKS, use_model=False)
     assert path is None and "unsaved" in text
+
+
+def test_all_done_skips_model_and_says_nothing_left(monkeypatch):
+    monkeypatch.setattr(handoff, "save", _fake_save({}))
+
+    def ask(*a, **k):
+        raise AssertionError("must not be called")
+
+    path, text = handoff.generate("abc", "/w", TASKS, ask=ask)
+    assert text.rstrip().endswith("Remaining work:\nNothing left.")
+    assert "written by the model" not in text
+
+
+def test_done_task_with_declined_tool_still_asks_model(monkeypatch):
+    monkeypatch.setattr(handoff, "save", _fake_save({}))
+    tasks = [
+        {
+            "task": "fix bug",
+            "outcome": "done",
+            "reply": "",
+            "tools": [{"name": "terminal", "status": "declined", "args": {"command": "x"}}],
+        }
+    ]
+    ask = lambda *a, **k: SimpleNamespace(content="- next")
+    path, text = handoff.generate("abc", "/w", tasks, ask=ask)
+    assert "- next" in text and "Nothing left." not in text

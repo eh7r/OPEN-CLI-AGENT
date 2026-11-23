@@ -164,12 +164,24 @@ def save(session_id: str, text: str) -> str:
         raise
 
 
+def _all_done(tasks) -> bool:
+    """True when every task finished and every tool call succeeded: nothing for the model to add."""
+    tasks = [t for t in (tasks or []) if isinstance(t, dict)]
+    return bool(tasks) and all(
+        t.get("outcome") == "done" and all(tool.get("status") == "ok" for tool in _tools(t))
+        for t in tasks
+    )
+
+
 def generate(session_id, workdir, tasks, ask=None, cancel=None, use_model=True):
     """Build the handoff, add the model section when possible, save it.
     Returns (path, text); path is None when the session is unsaved or the write fails."""
     base = build(session_id, workdir, tasks)
-    extra = model_section(base, ask=ask, cancel=cancel) if use_model else ""
-    text = build(session_id, workdir, tasks, extra) if extra else base
+    if _all_done(tasks):
+        text = base + "\nRemaining work:\nNothing left.\n"
+    else:
+        extra = model_section(base, ask=ask, cancel=cancel) if use_model else ""
+        text = build(session_id, workdir, tasks, extra) if extra else base
     path = None
     if session_id:
         try:
