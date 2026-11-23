@@ -53,3 +53,10 @@ def test_wrapped_english_line_stays_rtl():
 
 def test_pure_number_lines_untouched():
     assert rtl.render("1\n2\nواحد", 20).split("\n")[:2] == ["1", "2"]
+
+
+def test_lam_alef_is_one_code_point_in_words_mode():
+    out = rtl.render("الاستمرارية", 40, align=False)
+    assert "لا" not in out
+    assert "ﻻ" in out
+    assert rtl._cells(out) == 10

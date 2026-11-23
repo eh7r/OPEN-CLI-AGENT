@@ -21,6 +21,12 @@ except Exception:  # library missing: bidi mode shows text as is
 
 _AR = re.compile(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]")
 _TRAIL = ".,:;!?\u2026\u060c\u061b\u061f"
+# lam + optional harakat + alef: 2 cells but kitty draws one ligature glyph (gap)
+_LAMALEF = re.compile("\u0644[\u064b-\u0652]*[\u0622\u0623\u0625\u0627]")
+_RESHAPER = (
+    arabic_reshaper.ArabicReshaper(configuration={"delete_harakat": False})
+    if arabic_reshaper is not None else None
+)
 
 
 def available():
@@ -86,11 +92,18 @@ def _reorder_words(line):
     return " ".join(out)
 
 
+def _join_lamalef(line):
+    """Words mode: reshape whole words that contain lam-alef so it takes one cell."""
+    if _RESHAPER is None or not _LAMALEF.search(line):
+        return line
+    return " ".join(_RESHAPER.reshape(t) if _LAMALEF.search(t) else t for t in line.split(" "))
+
+
 @lru_cache(maxsize=1024)
 def _line(line, width, align, m):
     try:
         if m == "words":
-            visual = _reorder_words(line)
+            visual = _join_lamalef(_reorder_words(line))
         else:
             shaped = arabic_reshaper.reshape(line)
             try:
